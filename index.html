@@ -44,6 +44,7 @@ const HEIGHT = 720;
 const GROUND_Y = HEIGHT - 140;
 
 let state = 'menu';
+let lost = false;
 let fortress, hero, spawner, economy, upgrades, adSystem, levelMgr, rewards;
 let pendingChoices = [];
 let lastTime = 0;
@@ -545,6 +546,7 @@ function save() {
   }));
 }
 function startLevel() {
+  lost = false;
   state = 'playing';
   fortress.updateSections(levelMgr.currentLevel);
   spawner.startLevel(levelMgr.currentLevel);
@@ -553,18 +555,31 @@ function startLevel() {
   particles = [];
 }
 function nextWave() {
+  lost = false;
   spawner.currentWave++;
   spawner.startWave();
   state = 'playing';
+  fortress.health = fortress.maxHealth;
+  fortress.shield = fortress.maxShield;
+  particles = [];
+}
+function retryWave() {
+  lost = false;
+  spawner.startWave();
+  state = 'playing';
+  fortress.health = fortress.maxHealth;
+  fortress.shield = fortress.maxShield;
   particles = [];
 }
 function waveCleared() {
+  lost = false;
   rewards.setWaveChest(spawner.currentWave, levelMgr.currentLevel);
   pendingChoices = upgrades.generate();
   state = 'upgrade';
   save();
 }
 function levelComplete() {
+  lost = false;
   const finished = levelMgr.currentLevel;
   levelMgr.complete();
   fortress.updateSections(levelMgr.currentLevel);
@@ -604,7 +619,12 @@ function update(dt) {
       if (spawner.currentWave < spawner.totalWaves) waveCleared();
       else levelComplete();
     }
-    if (fortress.health <= 0) state = 'menu';
+    if (fortress.health <= 0) {
+      lost = true;
+      pendingChoices = upgrades.generate();
+      state = 'upgrade';
+      save();
+    }
   } else if (state === 'ad') {
     const r = adSystem.update(dt);
     if (r) {
@@ -738,9 +758,11 @@ function draw() {
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     buttons = [];
     const isLevelDone = spawner.currentWave >= spawner.totalWaves;
-    const title = isLevelDone
-      ? `Level ${levelMgr.currentLevel - 1} Complete!`
-      : `Wave ${spawner.currentWave} Cleared!`;
+    const title = lost
+      ? `Fortress Destroyed!`
+      : isLevelDone
+        ? `Level ${levelMgr.currentLevel - 1} Complete!`
+        : `Wave ${spawner.currentWave} Cleared!`;
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 34px Segoe UI';
     ctx.textAlign = 'center';
@@ -844,7 +866,7 @@ function draw() {
       ctx.beginPath(); ctx.roundRect(contR.x, contR.y, contR.w, contR.h, 10); ctx.fill();
     }
     ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Segoe UI'; ctx.textAlign = 'center';
-    const contLabel = isLevelDone ? 'Next Level' : 'Next Wave';
+    const contLabel = lost ? 'Retry' : isLevelDone ? 'Next Level' : 'Next Wave';
     ctx.fillText(contLabel, contR.x + contR.w/2, contR.y + 36);
     buttons.push({ rect: contR, data: { type: 'continue' } });
   } else if (state === 'ad') {
@@ -884,7 +906,8 @@ canvas.addEventListener('click', e => {
         else if (b.data.type === 'buy_section') { fortress.buySection(); save(); }
         else if (b.data.type === 'claim_chest') { rewards.claim(); save(); }
         else if (b.data.type === 'continue') {
-          if (spawner.currentWave < spawner.totalWaves) nextWave();
+          if (lost) retryWave();
+          else if (spawner.currentWave < spawner.totalWaves) nextWave();
           else startLevel();
         }
         else applyChoice(b.data);
