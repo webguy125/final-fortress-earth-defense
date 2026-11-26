@@ -50,6 +50,7 @@ let pendingChoices = [];
 let lastTime = 0;
 let buttons = [];
 let particles = [];
+let bullets = [];
 let images = {};
 let imagesLoaded = 0;
 const totalImages = 28;
@@ -108,6 +109,60 @@ class Particle {
     ctx.arc(this.x, this.y, this.size * a, 0, Math.PI * 2);
     ctx.fill();
     ctx.globalAlpha = 1;
+  }
+}
+
+class Bullet {
+  constructor(x, y, tx, ty, speed, damage, color, fromEnemy) {
+    this.x = x; this.y = y;
+    const dx = tx - x, dy = ty - y;
+    const len = Math.hypot(dx, dy) || 1;
+    this.vx = (dx / len) * speed;
+    this.vy = (dy / len) * speed;
+    this.damage = damage;
+    this.color = color;
+    this.fromEnemy = fromEnemy;
+    this.alive = true;
+    this.size = fromEnemy ? 6 : 4;
+    this.life = 2.5;
+  }
+  update(dt, enemies) {
+    this.x += this.vx * dt;
+    this.y += this.vy * dt;
+    this.life -= dt;
+    if (this.life <= 0 || this.x < -40 || this.x > WIDTH + 40) { this.alive = false; return; }
+    if (this.fromEnemy) {
+      if (Math.abs(this.x - fortress.x) < 50 && Math.abs(this.y - (fortress.y - 80)) < 120) {
+        fortress.takeDamage(this.damage);
+        this.alive = false;
+        particles.push(new Particle(this.x, this.y, '#ff6622', 0.3, 5));
+      }
+    } else {
+      for (const e of enemies) {
+        if (!e.alive) continue;
+        const ey = e.y - (e.type === 'Flying' ? 60 : 30);
+        if (Math.hypot(this.x - e.x, this.y - ey) < 22) {
+          e.takeDamage(this.damage);
+          this.alive = false;
+          particles.push(new Particle(this.x, this.y, this.color, 0.25, 4));
+          break;
+        }
+      }
+    }
+  }
+  draw() {
+    ctx.save();
+    ctx.fillStyle = this.color;
+    ctx.shadowColor = this.color;
+    ctx.shadowBlur = 8;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 0.5;
+    ctx.beginPath();
+    ctx.arc(this.x - this.vx * 0.015, this.y - this.vy * 0.015, this.size * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
   }
 }
 
@@ -195,9 +250,9 @@ class Fortress {
         if (target) {
           const shot = w.fire();
           if (shot) {
-            target.takeDamage(shot.damage);
             const yOff = -40 - i * 35;
-            for (let p = 0; p < 6; p++) particles.push(new Particle(this.x - 15 + (Math.random()-0.5)*20, this.y + yOff, shot.crit ? '#ffee44' : '#88ccff', 0.3, 5));
+            const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
+            bullets.push(new Bullet(this.x - 20, this.y + yOff, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
           }
         }
       }
@@ -281,7 +336,7 @@ class Hero {
     for (const a of Object.values(this.abilities)) if (a.cur > 0) a.cur -= dt;
     if (this.cooldown <= 0) {
       const t = this.findTarget(enemies);
-      if (t) { t.takeDamage(this.damage); this.cooldown = 1 / this.attackSpeed; particles.push(new Particle(this.x - 10, this.y - 40, '#0ff', 0.3, 5)); }
+      if (t) { this.cooldown = 1 / this.attackSpeed; bullets.push(new Bullet(this.x - 10, this.y - 40, t.x, t.y - 30, 600, this.damage, '#00ffff', false)); }
     }
   }
   findTarget(enemies) {
@@ -335,22 +390,31 @@ class Enemy {
   baseHealth() { return { Scout: 50, Warrior: 140, Tank: 450, Flying: 90, Elite: 280, Boss: 2200 }[this.type] || 100; }
   baseDamage() { return { Scout: 6, Warrior: 16, Tank: 32, Flying: 12, Elite: 28, Boss: 55 }[this.type] || 10; }
   baseSpeed() { return { Scout: 90, Warrior: 60, Tank: 35, Flying: 75, Elite: 55, Boss: 28 }[this.type] || 50; }
+  isRanged() { return this.type === 'Flying'; }
   update(dt, fortress) {
     this.bob += dt * 5;
-    const attackDist = this.type === 'Boss' ? 110 : 85;
+    const attackDist = this.isRanged() ? 260 : (this.type === 'Boss' ? 110 : 85);
     const stopX = fortress.x - attackDist;
+    this.attacking = false;
     if (this.x < stopX) {
       this.x += this.speed * dt;
       if (this.x > stopX) this.x = stopX;
     } else {
-      // In range: attack the tower, do not walk past it
+      this.attacking = true;
       this.attackTimer = (this.attackTimer || 0) + dt;
-      if (this.attackTimer >= 0.8) {
-        fortress.takeDamage(this.damage);
+      const rate = this.isRanged() ? 1.2 : 0.6;
+      if (this.attackTimer >= rate) {
         this.attackTimer = 0;
-        particles.push(new Particle(this.x + 20, this.y - 30, '#ff4422', 0.3, 4));
+        if (this.isRanged()) {
+          bullets.push(new Bullet(this.x + 10, this.y - 50, fortress.x - 20, fortress.y - 80, 280, this.damage, '#ff5533', true));
+        } else {
+          fortress.takeDamage(this.damage);
+          this.clawTime = 0.25;
+          particles.push(new Particle(fortress.x - 60, this.y - 40, '#ffaa88', 0.3, 5));
+        }
       }
     }
+    if (this.clawTime > 0) this.clawTime -= dt;
   }
   takeDamage(amount) {
     this.health -= amount;
@@ -379,6 +443,22 @@ class Enemy {
       ctx.font = '11px Segoe UI';
       ctx.textAlign = 'center';
       ctx.fillText(this.type[0], this.x, this.y - size/2 + yOff + bob);
+    }
+    // Claw slash when melee attacking
+    if (this.clawTime > 0 && !this.isRanged()) {
+      const a = this.clawTime / 0.25;
+      ctx.save();
+      ctx.globalAlpha = a;
+      ctx.strokeStyle = '#ffccaa';
+      ctx.lineWidth = 3;
+      const cx = this.x + size * 0.3, cy = this.y - size * 0.5;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(cx + i * 6, cy - 8);
+        ctx.lineTo(cx + 18 + i * 6, cy + 10);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
     const bar = size * 0.9;
     ctx.fillStyle = '#300';
@@ -553,6 +633,7 @@ function startLevel() {
   fortress.health = fortress.maxHealth;
   fortress.shield = fortress.maxShield;
   particles = [];
+  bullets = [];
 }
 function nextWave() {
   lost = false;
@@ -562,6 +643,7 @@ function nextWave() {
   fortress.health = fortress.maxHealth;
   fortress.shield = fortress.maxShield;
   particles = [];
+  bullets = [];
 }
 function retryWave() {
   lost = false;
@@ -570,6 +652,7 @@ function retryWave() {
   fortress.health = fortress.maxHealth;
   fortress.shield = fortress.maxShield;
   particles = [];
+  bullets = [];
 }
 function waveCleared() {
   lost = false;
@@ -605,6 +688,8 @@ function buyWeaponForSlot(type, slot) {
 function update(dt) {
   particles = particles.filter(p => p.life > 0);
   particles.forEach(p => p.update(dt));
+  bullets = bullets.filter(b => b.alive);
+  bullets.forEach(b => b.update(dt, spawner ? spawner.enemies : []));
   if (state === 'playing') {
     spawner.update(dt, fortress);
     fortress.update(dt, spawner.enemies);
@@ -664,6 +749,7 @@ function draw() {
     fortress.draw();
     hero.draw();
     for (const e of spawner.enemies) if (e.alive) e.draw();
+    bullets.forEach(b => b.draw());
     particles.forEach(p => p.draw());
     ctx.fillStyle = 'rgba(8,12,20,0.8)';
     ctx.fillRect(0, 0, WIDTH, 60);
