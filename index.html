@@ -51,7 +51,7 @@ let buttons = [];
 let particles = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 10;
+const totalImages = 12;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -69,8 +69,10 @@ loadImage('tank', 'sprites/tank.png');
 loadImage('flying', 'sprites/flying.png');
 loadImage('boss', 'sprites/boss.png');
 loadImage('background', 'sprites/background_side.jpg');
-loadImage('section1', 'sprites/section1.png');
-loadImage('section2', 'sprites/section2.png');
+loadImage('ability_airstrike', 'sprites/ability_airstrike.png');
+loadImage('ability_emp', 'sprites/ability_emp.png');
+loadImage('ability_shield', 'sprites/ability_shield.png');
+loadImage('ability_plasma', 'sprites/ability_plasma.png');
 
 class Particle {
   constructor(x, y, color, life = 0.6, size = 4) {
@@ -277,7 +279,16 @@ class Hero {
     }
   }
   draw() {
-    if (images.hero) ctx.drawImage(images.hero, this.x - 35, this.y - 90, 70, 90);
+    if (images.hero && images.hero.complete && images.hero.naturalWidth > 0) {
+      ctx.drawImage(images.hero, this.x - 35, this.y - 90, 70, 90);
+    } else {
+      ctx.fillStyle = '#0af';
+      ctx.fillRect(this.x - 20, this.y - 70, 40, 70);
+      ctx.fillStyle = '#fff';
+      ctx.font = '12px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('HERO', this.x, this.y - 30);
+    }
   }
 }
 
@@ -317,12 +328,20 @@ class Enemy {
     const size = this.type === 'Boss' ? 120 : this.type === 'Tank' ? 90 : 65;
     const yOff = this.type === 'Flying' ? -40 : 0;
     const bob = Math.sin(this.bob) * 3;
-    if (this.sprite) {
+    const validSprite = this.sprite && this.sprite.complete && this.sprite.naturalWidth > 0;
+    if (validSprite) {
       ctx.save();
       ctx.translate(this.x, 0);
-      ctx.scale(-1, 1); // flip to face right
+      ctx.scale(-1, 1);
       ctx.drawImage(this.sprite, -size/2, this.y - size + yOff + bob, size, size);
       ctx.restore();
+    } else {
+      ctx.fillStyle = this.type === 'Boss' ? '#c33' : this.type === 'Tank' ? '#666' : '#4a4';
+      ctx.fillRect(this.x - size/2, this.y - size + yOff + bob, size, size);
+      ctx.fillStyle = '#fff';
+      ctx.font = '11px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(this.type[0], this.x, this.y - size/2 + yOff + bob);
     }
     const bar = size * 0.9;
     ctx.fillStyle = '#300';
@@ -525,17 +544,54 @@ function draw() {
     ctx.fillStyle = '#4df';
     ctx.fillText(`Tech ${economy.tech}`, 600, 38);
     ctx.fillText(`Hero Lv.${hero.level}`, 800, 38);
-    let y = HEIGHT - 175;
+    let y = HEIGHT - 90;
     buttons = [];
+    const abilityIcons = {
+      'Air Strike': images.ability_airstrike,
+      'EMP Blast': images.ability_emp,
+      'Energy Shield': images.ability_shield,
+      'Plasma Bomb': images.ability_plasma
+    };
+    const iconSize = 70;
+    const spacing = 90;
+    const startX = WIDTH/2 - (Object.keys(hero.abilities).length * spacing) / 2;
+    let idx = 0;
     for (const [name, a] of Object.entries(hero.abilities)) {
-      const rect = { x: 20, y, w: 220, h: 34 };
-      ctx.fillStyle = a.cur <= 0 ? '#2a8' : '#555';
-      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      const x = startX + idx * spacing;
+      const rect = { x: x, y: y, w: iconSize, h: iconSize };
+      const icon = abilityIcons[name];
+      const validIcon = icon && icon.complete && icon.naturalWidth > 0;
+      // Dark rounded background so icons stand out on the wall
+      ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      ctx.beginPath();
+      ctx.roundRect(rect.x - 4, rect.y - 4, iconSize + 8, iconSize + 8, 10);
+      ctx.fill();
+      ctx.globalAlpha = a.cur <= 0 ? 1 : 0.4;
+      if (validIcon) {
+        ctx.drawImage(icon, rect.x, rect.y, iconSize, iconSize);
+      } else {
+        ctx.fillStyle = a.cur <= 0 ? '#2a8' : '#555';
+        ctx.beginPath();
+        ctx.roundRect(rect.x, rect.y, iconSize, iconSize, 8);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px Segoe UI';
+        ctx.textAlign = 'center';
+        ctx.fillText(name.split(' ')[0], rect.x + iconSize/2, rect.y + iconSize/2 + 4);
+      }
+      ctx.globalAlpha = 1;
+      // Short label under the icon
       ctx.fillStyle = '#fff';
-      ctx.font = '14px Segoe UI';
-      ctx.fillText(a.cur > 0 ? `${name} (${Math.ceil(a.cur)}s)` : name, rect.x + 10, rect.y + 22);
+      ctx.font = 'bold 11px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText(name.split(' ')[0], rect.x + iconSize/2, rect.y + iconSize + 14);
+      if (a.cur > 0) {
+        ctx.fillStyle = '#ff0';
+        ctx.font = 'bold 16px Segoe UI';
+        ctx.fillText(Math.ceil(a.cur), rect.x + iconSize/2, rect.y + iconSize/2 + 6);
+      }
       buttons.push({ rect, data: { type: 'ability', name } });
-      y += 40;
+      idx++;
     }
     const adR = { x: 18, y: HEIGHT - 52, w: 200, h: 40 };
     ctx.fillStyle = '#f80';
