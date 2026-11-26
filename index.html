@@ -258,7 +258,13 @@ class Enemy {
     const size = this.type === 'Boss' ? 120 : this.type === 'Tank' ? 90 : 65;
     const yOff = this.type === 'Flying' ? -40 : 0;
     const bob = Math.sin(this.bob) * 3;
-    if (this.sprite) ctx.drawImage(this.sprite, this.x - size/2, this.y - size + yOff + bob, size, size);
+    if (this.sprite) {
+      ctx.save();
+      ctx.translate(this.x, 0);
+      ctx.scale(-1, 1); // flip to face right
+      ctx.drawImage(this.sprite, -size/2, this.y - size + yOff + bob, size, size);
+      ctx.restore();
+    }
     const bar = size * 0.9;
     ctx.fillStyle = '#300';
     ctx.fillRect(this.x - bar/2, this.y - size - 12 + yOff, bar, 6);
