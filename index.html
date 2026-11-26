@@ -447,7 +447,6 @@ class UpgradeSystem {
       { name: '+20% Fire Rate', type: 'fire_rate', val: 0.20, cost: 160 },
       { name: '+25% Shield Capacity', type: 'shield', val: 0.25, cost: 150 },
       { name: '+12% Hero Damage', type: 'hero_damage', val: 0.12, cost: 120 },
-      { name: '+15% Coin Rewards', type: 'coins', val: 0.15, cost: 100 },
       { name: '+20% Fortress Health', type: 'health', val: 0.20, cost: 180 },
       { name: '+10% Crit Chance', type: 'crit', val: 0.10, cost: 200 }
     ];
@@ -460,7 +459,6 @@ class UpgradeSystem {
     else if (upg.type === 'shield') { fortress.maxShield *= 1+v; fortress.shield = fortress.maxShield; }
     else if (upg.type === 'health') { fortress.maxHealth *= 1+v; fortress.health = fortress.maxHealth; }
     else if (upg.type === 'hero_damage') hero.damage *= 1+v;
-    else if (upg.type === 'coins') fortress.coinMult *= 1+v;
     else if (upg.type === 'crit') fortress.weapons.forEach(w => w && (w.critChance = Math.min(0.55, w.critChance + v)));
   }
 }
