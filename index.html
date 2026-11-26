@@ -113,7 +113,7 @@ class Particle {
 }
 
 class Bullet {
-  constructor(x, y, tx, ty, speed, damage, color, fromEnemy) {
+  constructor(x, y, tx, ty, speed, damage, color, fromEnemy, size) {
     this.x = x; this.y = y;
     const dx = tx - x, dy = ty - y;
     const len = Math.hypot(dx, dy) || 1;
@@ -123,7 +123,7 @@ class Bullet {
     this.color = color;
     this.fromEnemy = fromEnemy;
     this.alive = true;
-    this.size = fromEnemy ? 6 : 4;
+    this.size = size || (fromEnemy ? 6 : 4);
     this.life = 2.5;
   }
   update(dt, enemies) {
@@ -201,7 +201,7 @@ const WEAPON_SHOP = [
   { type: 'Machine Gun', cost: 120, desc: 'Fast fire' },
   { type: 'Laser Gun', cost: 200, desc: 'Precise beams' },
   { type: 'Plasma Gun', cost: 320, desc: 'Heavy energy' },
-  { type: 'Railgun', cost: 500, desc: 'Massive damage' },
+  { type: 'Railgun', cost: 500, desc: 'Long range anti-tank' },
   { type: 'Freeze Cannon', cost: 380, desc: 'Slows enemies' },
   { type: 'Air Gun', cost: 240, desc: 'Anti-air' }
 ];
@@ -377,6 +377,7 @@ class Enemy {
     this.type = type;
     this.health = this.maxHealth = this.baseHealth() * scale;
     this.damage = this.baseDamage() * scale;
+    this.armor = this.baseArmor();
     this.speed = this.baseSpeed();
     this.rewardCoins = Math.floor(4 * scale * (0.7 + Math.random() * 0.6));
     this.rewardTech = Math.floor(1 * scale);
@@ -387,13 +388,15 @@ class Enemy {
     this.bob = Math.random() * Math.PI * 2;
     this.sprite = images[type.toLowerCase()] || images.scout;
   }
-  baseHealth() { return { Scout: 50, Warrior: 140, Tank: 450, Flying: 90, Elite: 280, Boss: 2200 }[this.type] || 100; }
+  baseHealth() { return { Scout: 50, Warrior: 140, Tank: 500, Flying: 90, Elite: 280, Boss: 2200 }[this.type] || 100; }
+  baseArmor() { return { Tank: 100, Elite: 20, Boss: 40 }[this.type] || 0; }
   baseDamage() { return { Scout: 6, Warrior: 16, Tank: 32, Flying: 12, Elite: 28, Boss: 55 }[this.type] || 10; }
   baseSpeed() { return { Scout: 90, Warrior: 60, Tank: 35, Flying: 75, Elite: 55, Boss: 28 }[this.type] || 50; }
-  isRanged() { return this.type === 'Flying'; }
+  isRanged() { return this.type === 'Flying' || this.type === 'Tank'; }
+  isBomber() { return this.type === 'Tank'; }
   update(dt, fortress) {
     this.bob += dt * 5;
-    const attackDist = this.isRanged() ? 260 : (this.type === 'Boss' ? 110 : 85);
+    const attackDist = this.isBomber() ? 460 : this.isRanged() ? 260 : (this.type === 'Boss' ? 110 : 85);
     const stopX = fortress.x - attackDist;
     this.attacking = false;
     if (this.x < stopX) {
@@ -405,7 +408,9 @@ class Enemy {
       const rate = this.isRanged() ? 1.2 : 0.6;
       if (this.attackTimer >= rate) {
         this.attackTimer = 0;
-        if (this.isRanged()) {
+        if (this.isBomber()) {
+          bullets.push(new Bullet(this.x + 10, this.y - 40, fortress.x - 30, fortress.y - 60, 180, this.damage, '#ff8800', true, 10));
+        } else if (this.isRanged()) {
           bullets.push(new Bullet(this.x + 10, this.y - 50, fortress.x - 20, fortress.y - 80, 280, this.damage, '#ff5533', true));
         } else {
           fortress.takeDamage(this.damage);
@@ -417,7 +422,8 @@ class Enemy {
     if (this.clawTime > 0) this.clawTime -= dt;
   }
   takeDamage(amount) {
-    this.health -= amount;
+    const dealt = Math.max(0, amount - this.armor);
+    this.health -= dealt;
     if (this.health <= 0) {
       this.alive = false;
       for (let i = 0; i < 15; i++) particles.push(new Particle(this.x, this.y - 30, '#ff6600', 0.6, 6));
@@ -494,12 +500,16 @@ class EnemySpawner {
     this.enemies = [];
     this.boss = false;
     this.timer = 0.4;
+    this.tanksSpawned = 0;
+    this.maxTanks = 3 + Math.floor((lvl - 1) / 6) + Math.floor((w - 1) / 2);
   }
   update(dt, fortress) {
     this.timer += dt;
     if (this.toSpawn > 0 && this.timer >= this.interval) {
       this.timer = 0;
-      this.enemies.push(new Enemy(this.pickType(), this.waveScale || this.scale));
+      const type = this.pickType();
+      if (type === 'Tank') this.tanksSpawned++;
+      this.enemies.push(new Enemy(type, this.waveScale || this.scale));
       this.toSpawn--;
     }
     for (const e of this.enemies) if (e.alive) e.update(dt, fortress);
@@ -511,9 +521,11 @@ class EnemySpawner {
   }
   pickType() {
     const l = levelMgr.currentLevel, w = this.currentWave, r = Math.random();
+    const allowTank = this.tanksSpawned < this.maxTanks;
     if (l < 4) return w < 3 ? (r < 0.7 ? 'Scout' : 'Warrior') : (r < 0.4 ? 'Scout' : 'Warrior');
-    if (l < 10) return r < 0.3 ? 'Scout' : r < 0.7 ? 'Warrior' : 'Tank';
-    if (l < 20) return r < 0.15 ? 'Scout' : r < 0.4 ? 'Warrior' : r < 0.7 ? 'Tank' : r < 0.88 ? 'Flying' : 'Elite';
+    if (!allowTank) return r < 0.5 ? 'Scout' : r < 0.8 ? 'Warrior' : 'Flying';
+    if (l < 10) return r < 0.35 ? 'Scout' : r < 0.75 ? 'Warrior' : 'Tank';
+    if (l < 20) return r < 0.2 ? 'Scout' : r < 0.5 ? 'Warrior' : r < 0.7 ? 'Tank' : r < 0.88 ? 'Flying' : 'Elite';
     return ['Warrior','Tank','Flying','Elite'][Math.floor(Math.random()*4)];
   }
   cleared() { return this.toSpawn <= 0 && this.enemies.every(e => !e.alive); }
