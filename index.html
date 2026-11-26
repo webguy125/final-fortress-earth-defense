@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Final Fortress: Earth Defense</title>
+<style>
+body {
+  margin: 0;
+  background: #0a0c12;
+  color: #fff;
+  font-family: 'Segoe UI', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  overflow: hidden;
+}
+canvas {
+  border: 3px solid #2a3a5a;
+  max-width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 0 30px rgba(80, 140, 255, 0.25);
+}
+#info {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #8aa;
+}
+</style>
+</head>
+<body>
+<canvas id="game" width="1280" height="720"></canvas>
+<div id="info">Final Fortress: Earth Defense • Click / Tap to interact • Progress saves automatically</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const WIDTH = 1280;
+const HEIGHT = 720;
+
+let state = 'menu';
+let fortress, hero, spawner, economy, upgrades, adSystem, levelMgr;
+let pendingChoices = [];
+let lastTime = 0;
+let buttons = [];
+let particles = [];
+let images = {};
+let imagesLoaded = 0;
+const totalImages = 8;
+
+function loadImage(name, src) {
+  const img = new Image();
+  img.onload = () => { imagesLoaded++; if (imagesLoaded === totalImages) init(); };
+  img.src = src;
+  images[name] = img;
+}
+
+loadImage('fortress', 'sprites/fortress.jpg');
+loadImage('hero', 'sprites/hero.jpg');
+loadImage('scout', 'sprites/scout.jpg');
+loadImage('warrior', 'sprites/warrior.jpg');
+loadImage('tank', 'sprites/tank.jpg');
+loadImage('flying', 'sprites/flying.jpg');
+loadImage('boss', 'sprites/boss.jpg');
+loadImage('background', 'sprites/background.jpg');
+
+class Particle {
+  constructor(x, y, color, life = 0.6, size = 4) {
+    this.x = x; this.y = y;
+    this.vx = (Math.random() - 0.5) * 140;
+    this.vy = (Math.random() - 0.5) * 140;
+    this.life = life; this.maxLife = life;
+    this.color = color; this.size = size;
+  }
+  update(dt) { this.x += this.vx * dt; this.y += this.vy * dt; this.life -= dt; }
+  draw() {
+    const a = Math.max(0, this.life / this.maxLife);
+    ctx.globalAlpha = a;
+    ctx.fillStyle = this.color;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.size * a, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+class Weapon {
+  constructor(type, level = 1) {
+    this.type = type; this.level = level;
+    this.damage = this.baseDamage();
+    this.fireRate = this.baseFireRate();
+    this.range = this.baseRange();
+    this.critChance = 0.05 + level * 0.01;
+    this.cooldown = 0;
+  }
+  baseDamage() {
+    const b = { 'Machine Gun': 8, 'Missile Launcher': 45, 'Laser Cannon': 15, 'Plasma Cannon': 25, 'Railgun': 120 };
+    return (b[this.type] || 10) * (1 + (this.level - 1) * 0.15);
+  }
+  baseFireRate() {
+    const r = { 'Machine Gun': 8, 'Missile Launcher': 0.6, 'Laser Cannon': 4, 'Plasma Cannon': 2, 'Railgun': 0.35 };
+    return (r[this.type] || 2) * (1 + (this.level - 1) * 0.08);
+  }
+  baseRange() {
+    const r = { 'Machine Gun': 280, 'Missile Launcher': 450, 'Laser Cannon': 350, 'Plasma Cannon': 320, 'Railgun': 550 };
+    return (r[this.type] || 300) + this.level * 10;
+  }
+  update(dt) { if (this.cooldown > 0) this.cooldown -= dt; }
+  canFire() { return this.cooldown <= 0; }
+  fire() {
+    if (!this.canFire()) return null;
+    this.cooldown = 1 / this.fireRate;
+    const crit = Math.random() < this.critChance;
+    return { damage: this.damage * (crit ? 2 : 1), crit };
+  }
+}
+
+class Fortress {
+  constructor() {
+    this.x = WIDTH / 2; this.y = HEIGHT - 160;
+    this.health = 1000; this.maxHealth = 1000;
+    this.shield = 500; this.maxShield = 500;
+    this.shieldRegen = 5; this.coinMult = 1;
+    this.weaponSlots = [new Weapon('Machine Gun')];
+    this.unlockedSlots = 1; this.bob = 0;
+  }
+  update(dt, enemies) {
+    this.bob += dt * 1.5;
+    if (this.shield < this.maxShield) this.shield = Math.min(this.maxShield, this.shield + this.shieldRegen * dt);
+    for (const w of this.weaponSlots) {
+      if (!w) continue;
+      w.update(dt);
+      if (w.canFire()) {
+        const target = this.findTarget(enemies, w.range);
+        if (target) {
+          const shot = w.fire();
+          if (shot) {
+            target.takeDamage(shot.damage);
+            for (let i = 0; i < 8; i++) particles.push(new Particle(this.x + (Math.random()-0.5)*40, this.y - 30, shot.crit ? '#ffee44' : '#88ccff', 0.35, 6));
+          }
+        }
+      }
+    }
+  }
+  findTarget(enemies, range) {
+    let best = null, dist = range;
+    for (const e of enemies) {
+      if (!e.alive) continue;
+      const d = Math.hypot(e.x - this.x, e.y - this.y);
+      if (d < dist) { dist = d; best = e; }
+    }
+    return best;
+  }
+  takeDamage(amount) {
+    if (this.shield > 0) { const abs = Math.min(this.shield, amount); this.shield -= abs; amount -= abs; }
+    if (amount > 0) this.health -= amount;
+    return this.health > 0;
+  }
+  unlockSlot() {
+    if (this.unlockedSlots < 5) { this.unlockedSlots++; this.weaponSlots.push(new Weapon('Machine Gun')); }
+  }
+  draw() {
+    const y = this.y + Math.sin(this.bob) * 3;
+    if (images.fortress) ctx.drawImage(images.fortress, this.x - 90, y - 70, 180, 140);
+    // bars
+    ctx.fillStyle = '#111';
+    ctx.fillRect(this.x - 70, y - 90, 140, 10);
+    ctx.fillStyle = '#4af';
+    ctx.fillRect(this.x - 70, y - 90, 140 * (this.shield / this.maxShield), 10);
+    ctx.fillStyle = '#e44';
+    ctx.fillRect(this.x - 70, y - 78, 140 * (this.health / this.maxHealth), 7);
+  }
+}
+
+class Hero {
+  constructor() {
+    this.level = 1; this.damage = 20; this.attackSpeed = 1.5; this.cooldown = 0;
+    this.abilities = {
+      'Air Strike': { cd: 20, cur: 0, dmg: 150 },
+      'EMP Blast': { cd: 25, cur: 0, dmg: 80 },
+      'Energy Shield': { cd: 30, cur: 0, effect: 'shield' },
+      'Plasma Bomb': { cd: 18, cur: 0, dmg: 200 }
+    };
+  }
+  update(dt, fortress, enemies) {
+    this.x = fortress.x + 70; this.y = fortress.y - 10;
+    if (this.cooldown > 0) this.cooldown -= dt;
+    for (const a of Object.values(this.abilities)) if (a.cur > 0) a.cur -= dt;
+    if (this.cooldown <= 0) {
+      const t = this.findTarget(enemies);
+      if (t) { t.takeDamage(this.damage); this.cooldown = 1 / this.attackSpeed; particles.push(new Particle(this.x, this.y - 15, '#0ff', 0.3, 5)); }
+    }
+  }
+  findTarget(enemies) {
+    let best = null, d = 240;
+    for (const e of enemies) { if (!e.alive) continue; const dist = Math.hypot(e.x - this.x, e.y - this.y); if (dist < d) { d = dist; best = e; } }
+    return best;
+  }
+  useAbility(name, enemies, fortress) {
+    const a = this.abilities[name];
+    if (!a || a.cur > 0) return;
+    a.cur = a.cd;
+    if (name === 'Energy Shield') fortress.shield = Math.min(fortress.maxShield, fortress.shield + 200);
+    else {
+      for (const e of enemies) if (Math.hypot(e.x - fortress.x, e.y - fortress.y) < 280) e.takeDamage(a.dmg || 100);
+      for (let i = 0; i < 25; i++) particles.push(new Particle(fortress.x, fortress.y - 20, '#ffaa00', 0.8, 7));
+    }
+  }
+  draw() {
+    if (images.hero) ctx.drawImage(images.hero, this.x - 28, this.y - 35, 56, 70);
+  }
+}
+
+class Enemy {
+  constructor(type, scale = 1) {
+    this.type = type;
+    this.health = this.maxHealth = this.baseHealth() * scale;
+    this.damage = this.baseDamage() * scale;
+    this.speed = this.baseSpeed();
+    this.rewardCoins = Math.floor(12 * scale * (0.8 + Math.random() * 0.7));
+    this.rewardTech = Math.floor(2 * scale);
+    this.rewardExp = Math.floor(6 * scale);
+    this.x = 80 + Math.random() * (WIDTH - 160);
+    this.y = -40 - Math.random() * 80;
+    this.alive = true;
+    this.bob = Math.random() * Math.PI * 2;
+    this.sprite = images[type.toLowerCase()] || images.scout;
+  }
+  baseHealth() { return { Scout: 50, Warrior: 140, Tank: 450, Flying: 90, Elite: 280, Boss: 2200 }[this.type] || 100; }
+  baseDamage() { return { Scout: 6, Warrior: 16, Tank: 32, Flying: 12, Elite: 28, Boss: 55 }[this.type] || 10; }
+  baseSpeed() { return { Scout: 150, Warrior: 85, Tank: 42, Flying: 110, Elite: 75, Boss: 38 }[this.type] || 60; }
+  update(dt, fortress) {
+    this.bob += dt * 3;
+    const dx = fortress.x - this.x, dy = fortress.y - this.y;
+    const dist = Math.max(1, Math.hypot(dx, dy));
+    this.x += (dx / dist) * this.speed * dt;
+    this.y += (dy / dist) * this.speed * dt;
+    if (dist < 80) fortress.takeDamage(this.damage * dt * 2);
+  }
+  takeDamage(amount) {
+    this.health -= amount;
+    if (this.health <= 0) {
+      this.alive = false;
+      for (let i = 0; i < 15; i++) particles.push(new Particle(this.x, this.y, '#ff6600', 0.6, 6));
+      return true;
+    }
+    return false;
+  }
+  draw() {
+    const y = this.y + Math.sin(this.bob) * 4;
+    const size = this.type === 'Boss' ? 90 : this.type === 'Tank' ? 70 : 50;
+    if (this.sprite) ctx.drawImage(this.sprite, this.x - size/2, y - size/2, size, size);
+    const bar = size * 0.9;
+    ctx.fillStyle = '#300';
+    ctx.fillRect(this.x - bar/2, y - size/2 - 12, bar, 6);
+    ctx.fillStyle = '#0c0';
+    ctx.fillRect(this.x - bar/2, y - size/2 - 12, bar * Math.max(0, this.health / this.maxHealth), 6);
+  }
+}
+
+class EnemySpawner {
+  constructor() { this.enemies = []; this.toSpawn = 0; this.timer = 0; this.interval = 1.1; this.scale = 1; this.boss = false; }
+  start(level) {
+    this.scale = 1 + (level - 1) * 0.13;
+    this.toSpawn = 7 + Math.floor(level * 1.8);
+    this.interval = Math.max(0.3, 1.3 - level * 0.02);
+    this.enemies = []; this.boss = false; this.timer = 0;
+  }
+  update(dt, fortress) {
+    this.timer += dt;
+    if (this.toSpawn > 0 && this.timer >= this.interval) {
+      this.timer = 0;
+      this.enemies.push(new Enemy(this.pickType(), this.scale));
+      this.toSpawn--;
+    }
+    for (const e of this.enemies) if (e.alive) e.update(dt, fortress);
+    if (levelMgr.currentLevel % 5 === 0 && !this.boss && this.toSpawn === 0 && this.enemies.filter(e => e.alive).length < 2) {
+      const b = new Enemy('Boss', this.scale * 1.6);
+      b.x = WIDTH / 2; b.y = -70;
+      this.enemies.push(b); this.boss = true;
+    }
+  }
+  pickType() {
+    const l = levelMgr.currentLevel, r = Math.random();
+    if (l < 6) return r < 0.65 ? 'Scout' : 'Warrior';
+    if (l < 16) return r < 0.35 ? 'Scout' : r < 0.7 ? 'Warrior' : 'Tank';
+    if (l < 32) return r < 0.2 ? 'Scout' : r < 0.45 ? 'Warrior' : r < 0.7 ? 'Tank' : r < 0.88 ? 'Flying' : 'Elite';
+    return ['Warrior','Tank','Flying','Elite'][Math.floor(Math.random()*4)];
+  }
+  cleared() { return this.toSpawn <= 0 && this.enemies.every(e => !e.alive); }
+}
+
+class Economy { constructor() { this.coins = 0; this.tech = 0; } add(c, t) { this.coins += c; this.tech += t; } }
+class UpgradeSystem {
+  generate() {
+    const pool = [
+      { name: '+15% Weapon Damage', type: 'damage', val: 0.15 },
+      { name: '+20% Fire Rate', type: 'fire_rate', val: 0.20 },
+      { name: '+25% Shield Capacity', type: 'shield', val: 0.25 },
+      { name: '+12% Hero Damage', type: 'hero_damage', val: 0.12 },
+      { name: '+15% Coin Rewards', type: 'coins', val: 0.15 },
+      { name: '+20% Fortress Health', type: 'health', val: 0.20 },
+      { name: 'Unlock Next Weapon Slot', type: 'slot', val: 1 },
+      { name: '+10% Crit Chance', type: 'crit', val: 0.10 }
+    ];
+    return pool.sort(() => Math.random() - 0.5).slice(0, 3);
+  }
+  apply(upg) {
+    const v = upg.val;
+    if (upg.type === 'damage') fortress.weaponSlots.forEach(w => w && (w.damage *= 1+v));
+    else if (upg.type === 'fire_rate') fortress.weaponSlots.forEach(w => w && (w.fireRate *= 1+v));
+    else if (upg.type === 'shield') { fortress.maxShield *= 1+v; fortress.shield = fortress.maxShield; }
+    else if (upg.type === 'health') { fortress.maxHealth *= 1+v; fortress.health = fortress.maxHealth; }
+    else if (upg.type === 'hero_damage') hero.damage *= 1+v;
+    else if (upg.type === 'coins') fortress.coinMult *= 1+v;
+    else if (upg.type === 'slot') fortress.unlockSlot();
+    else if (upg.type === 'crit') fortress.weaponSlots.forEach(w => w && (w.critChance = Math.min(0.55, w.critChance + v)));
+  }
+}
+class AdSystem {
+  constructor() { this.active = false; this.countdown = 0; this.type = null; this.data = null; }
+  start(type, data) { this.active = true; this.countdown = 15; this.type = type; this.data = data; }
+  update(dt) {
+    if (!this.active) return null;
+    this.countdown -= dt;
+    if (this.countdown <= 0) { this.active = false; return { type: this.type, data: this.data }; }
+    return null;
+  }
+}
+class LevelManager {
+  constructor() { this.currentLevel = 1; }
+  getArea() {
+    const areas = [[1,'Rural Earth'],[8,'Desert Outpost'],[15,'Industrial Zone'],[22,'Ruined City'],[30,'Arctic Base'],[38,'Moon Colony'],[45,'Mars Settlement']];
+    let name = 'Rural Earth';
+    for (const [t, n] of areas) if (this.currentLevel >= t) name = n;
+    return name;
+  }
+  complete() { this.currentLevel++; }
+}
+
+function init() {
+  fortress = new Fortress();
+  hero = new Hero();
+  spawner = new EnemySpawner();
+  economy = new Economy();
+  upgrades = new UpgradeSystem();
+  adSystem = new AdSystem();
+  levelMgr = new LevelManager();
+  load();
+}
+function load() {
+  const s = localStorage.getItem('finalFortress');
+  if (s) {
+    const d = JSON.parse(s);
+    economy.coins = d.coins || 0; economy.tech = d.tech || 0;
+    levelMgr.currentLevel = d.level || 1; hero.level = d.heroLevel || 1;
+  }
+}
+function save() {
+  localStorage.setItem('finalFortress', JSON.stringify({
+    coins: economy.coins, tech: economy.tech, level: levelMgr.currentLevel, heroLevel: hero.level
+  }));
+}
+function startLevel() {
+  state = 'playing';
+  spawner.start(levelMgr.currentLevel);
+  fortress.health = fortress.maxHealth;
+  fortress.shield = fortress.maxShield;
+  particles = [];
+}
+function levelComplete() {
+  levelMgr.complete();
+  pendingChoices = upgrades.generate();
+  state = 'upgrade';
+  save();
+}
+function applyChoice(upg) {
+  if (upg.type === 'ad_both') { adSystem.start('both', pendingChoices); state = 'ad'; return; }
+  upgrades.apply(upg); startLevel();
+}
+function update(dt) {
+  particles = particles.filter(p => p.life > 0);
+  particles.forEach(p => p.update(dt));
+  if (state === 'playing') {
+    spawner.update(dt, fortress);
+    fortress.update(dt, spawner.enemies);
+    hero.update(dt, fortress, spawner.enemies);
+    for (const e of spawner.enemies) {
+      if (!e.alive && !e.rewarded) {
+        economy.add(Math.floor(e.rewardCoins * fortress.coinMult), e.rewardTech);
+        e.rewarded = true;
+      }
+    }
+    if (spawner.cleared() && fortress.health > 0) levelComplete();
+    if (fortress.health <= 0) state = 'menu';
+  } else if (state === 'ad') {
+    const r = adSystem.update(dt);
+    if (r) {
+      if (r.type === 'both') r.data.forEach(u => upgrades.apply(u));
+      else if (r.type === 'double') economy.coins *= 2;
+      startLevel();
+    }
+  }
+}
+function draw() {
+  if (images.background) ctx.drawImage(images.background, 0, 0, WIDTH, HEIGHT);
+  else { ctx.fillStyle = '#0c1220'; ctx.fillRect(0, 0, WIDTH, HEIGHT); }
+
+  if (state === 'menu') {
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 54px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('FINAL FORTRESS', WIDTH/2, 190);
+    ctx.font = '28px Segoe UI';
+    ctx.fillStyle = '#4af';
+    ctx.fillText('Earth Defense', WIDTH/2, 240);
+    ctx.fillStyle = '#2a8';
+    ctx.fillRect(WIDTH/2 - 140, 320, 280, 75);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 38px Segoe UI';
+    ctx.fillText('PLAY', WIDTH/2, 368);
+  } else if (state === 'playing') {
+    fortress.draw();
+    hero.draw();
+    for (const e of spawner.enemies) if (e.alive) e.draw();
+    particles.forEach(p => p.draw());
+    ctx.fillStyle = 'rgba(8,12,20,0.8)';
+    ctx.fillRect(0, 0, WIDTH, 60);
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px Segoe UI';
+    ctx.textAlign = 'left';
+    ctx.fillText(`Level ${levelMgr.currentLevel}  •  ${levelMgr.getArea()}`, 18, 38);
+    ctx.fillStyle = '#fd0';
+    ctx.fillText(`Coins ${economy.coins}`, 400, 38);
+    ctx.fillStyle = '#4df';
+    ctx.fillText(`Tech ${economy.tech}`, 600, 38);
+    ctx.fillText(`Hero Lv.${hero.level}`, 800, 38);
+    let y = HEIGHT - 175;
+    buttons = [];
+    for (const [name, a] of Object.entries(hero.abilities)) {
+      const rect = { x: WIDTH - 240, y, w: 220, h: 34 };
+      ctx.fillStyle = a.cur <= 0 ? '#2a8' : '#555';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = '#fff';
+      ctx.font = '14px Segoe UI';
+      ctx.fillText(a.cur > 0 ? `${name} (${Math.ceil(a.cur)}s)` : name, rect.x + 10, rect.y + 22);
+      buttons.push({ rect, data: { type: 'ability', name } });
+      y += 40;
+    }
+    const adR = { x: 18, y: HEIGHT - 52, w: 200, h: 40 };
+    ctx.fillStyle = '#f80';
+    ctx.fillRect(adR.x, adR.y, adR.w, adR.h);
+    ctx.fillStyle = '#000';
+    ctx.font = '15px Segoe UI';
+    ctx.fillText('Watch Ad (Bonus)', adR.x + 14, adR.y + 26);
+    buttons.push({ rect: adR, data: { type: 'ad_double' } });
+  } else if (state === 'upgrade') {
+    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillStyle = '#fff';
+    ctx.font = '36px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Level ${levelMgr.currentLevel - 1} Complete!`, WIDTH/2, 150);
+    ctx.font = '22px Segoe UI';
+    buttons = [];
+    pendingChoices.forEach((u, i) => {
+      const rect = { x: WIDTH/2 - 220, y: 200 + i * 78, w: 440, h: 60 };
+      ctx.fillStyle = '#28a';
+      ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.strokeStyle = '#fff';
+      ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+      ctx.fillStyle = '#fff';
+      ctx.fillText(u.name, WIDTH/2, rect.y + 38);
+      buttons.push({ rect, data: u });
+    });
+    const adR = { x: WIDTH/2 - 170, y: 510, w: 340, h: 46 };
+    ctx.fillStyle = '#f80';
+    ctx.fillRect(adR.x, adR.y, adR.w, adR.h);
+    ctx.fillStyle = '#000';
+    ctx.fillText('Watch Ad: Claim Both', WIDTH/2, adR.y + 30);
+    buttons.push({ rect: adR, data: { type: 'ad_both' } });
+  } else if (state === 'ad') {
+    ctx.fillStyle = '#1a2230';
+    ctx.fillRect(WIDTH/2 - 220, HEIGHT/2 - 95, 440, 190);
+    ctx.strokeStyle = '#f80';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(WIDTH/2 - 220, HEIGHT/2 - 95, 440, 190);
+    ctx.fillStyle = '#fff';
+    ctx.font = '34px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('Simulated Ad', WIDTH/2, HEIGHT/2 - 20);
+    ctx.font = '24px Segoe UI';
+    ctx.fillStyle = '#fd0';
+    ctx.fillText(`Reward in ${Math.ceil(adSystem.countdown)}s`, WIDTH/2, HEIGHT/2 + 35);
+  }
+}
+function loop(ts) {
+  const dt = Math.min((ts - lastTime) / 1000, 0.05);
+  lastTime = ts;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const x = (e.clientX - rect.left) * (WIDTH / rect.width);
+  const y = (e.clientY - rect.top) * (HEIGHT / rect.height);
+  if (state === 'menu') {
+    if (x > WIDTH/2 - 140 && x < WIDTH/2 + 140 && y > 320 && y < 395) startLevel();
+  } else if (state === 'upgrade' || state === 'playing') {
+    for (const b of buttons) {
+      if (x >= b.rect.x && x <= b.rect.x + b.rect.w && y >= b.rect.y && y <= b.rect.y + b.rect.h) {
+        if (b.data.type === 'ability') hero.useAbility(b.data.name, spawner.enemies, fortress);
+        else if (b.data.type === 'ad_double') { adSystem.start('double'); state = 'ad'; }
+        else applyChoice(b.data);
+        break;
+      }
+    }
+  }
+});
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
