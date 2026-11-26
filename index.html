@@ -158,6 +158,14 @@ class Fortress {
     this.weapons[slot] = new Weapon(type);
     return true;
   }
+  sectionCost() { return 120 + (this.sections - 3) * 80; }
+  buySection() {
+    if (this.sections >= 7 || economy.coins < this.sectionCost()) return false;
+    economy.coins -= this.sectionCost();
+    this.sections++;
+    this.weapons.push(null);
+    return true;
+  }
   update(dt, enemies) {
     this.bob += dt * 1.2;
     if (this.shield < this.maxShield) this.shield = Math.min(this.maxShield, this.shield + this.shieldRegen * dt);
@@ -312,8 +320,20 @@ class Enemy {
   baseSpeed() { return { Scout: 90, Warrior: 60, Tank: 35, Flying: 75, Elite: 55, Boss: 28 }[this.type] || 50; }
   update(dt, fortress) {
     this.bob += dt * 5;
-    this.x += this.speed * dt;
-    if (this.x > fortress.x - 80) fortress.takeDamage(this.damage * dt * 1.5);
+    const attackDist = this.type === 'Boss' ? 110 : 85;
+    const stopX = fortress.x - attackDist;
+    if (this.x < stopX) {
+      this.x += this.speed * dt;
+      if (this.x > stopX) this.x = stopX;
+    } else {
+      // In range: attack the tower, do not walk past it
+      this.attackTimer = (this.attackTimer || 0) + dt;
+      if (this.attackTimer >= 0.8) {
+        fortress.takeDamage(this.damage);
+        this.attackTimer = 0;
+        particles.push(new Particle(this.x + 20, this.y - 30, '#ff4422', 0.3, 4));
+      }
+    }
   }
   takeDamage(amount) {
     this.health -= amount;
@@ -352,12 +372,29 @@ class Enemy {
 }
 
 class EnemySpawner {
-  constructor() { this.enemies = []; this.toSpawn = 0; this.timer = 0; this.interval = 1.2; this.scale = 1; this.boss = false; }
-  start(level) {
+  constructor() {
+    this.enemies = [];
+    this.toSpawn = 0;
+    this.timer = 0;
+    this.interval = 1.2;
+    this.scale = 1;
+    this.boss = false;
+    this.currentWave = 1;
+    this.totalWaves = 4;
+  }
+  startLevel(level) {
     this.scale = 1 + (level - 1) * 0.13;
-    this.toSpawn = 7 + Math.floor(level * 1.8);
-    this.interval = Math.max(0.4, 1.4 - level * 0.02);
-    this.enemies = []; this.boss = false; this.timer = 0;
+    this.currentWave = 1;
+    this.totalWaves = 4;
+    this.startWave();
+  }
+  startWave() {
+    const lvl = levelMgr.currentLevel;
+    this.toSpawn = 4 + Math.floor(lvl * 0.8) + (this.currentWave - 1) * 2;
+    this.interval = Math.max(0.45, 1.5 - lvl * 0.015);
+    this.enemies = [];
+    this.boss = false;
+    this.timer = 0.4;
   }
   update(dt, fortress) {
     this.timer += dt;
@@ -367,9 +404,10 @@ class EnemySpawner {
       this.toSpawn--;
     }
     for (const e of this.enemies) if (e.alive) e.update(dt, fortress);
-    if (levelMgr.currentLevel % 5 === 0 && !this.boss && this.toSpawn === 0 && this.enemies.filter(e => e.alive).length < 2) {
-      const b = new Enemy('Boss', this.scale * 1.6);
-      this.enemies.push(b); this.boss = true;
+    // Boss on the last wave of every 5th level
+    if (lvlIsBoss() && this.currentWave === this.totalWaves && !this.boss && this.toSpawn === 0 && this.enemies.filter(e => e.alive).length < 2) {
+      this.enemies.push(new Enemy('Boss', this.scale * 1.6));
+      this.boss = true;
     }
   }
   pickType() {
@@ -381,6 +419,7 @@ class EnemySpawner {
   }
   cleared() { return this.toSpawn <= 0 && this.enemies.every(e => !e.alive); }
 }
+function lvlIsBoss() { return levelMgr.currentLevel % 5 === 0; }
 
 class Economy { constructor() { this.coins = 50; this.tech = 0; } add(c, t) { this.coins += c; this.tech += t; } }
 class UpgradeSystem {
@@ -454,10 +493,21 @@ function save() {
 function startLevel() {
   state = 'playing';
   fortress.updateSections(levelMgr.currentLevel);
-  spawner.start(levelMgr.currentLevel);
+  spawner.startLevel(levelMgr.currentLevel);
   fortress.health = fortress.maxHealth;
   fortress.shield = fortress.maxShield;
   particles = [];
+}
+function nextWave() {
+  spawner.currentWave++;
+  spawner.startWave();
+  state = 'playing';
+  particles = [];
+}
+function waveCleared() {
+  pendingChoices = upgrades.generate();
+  state = 'upgrade';
+  save();
 }
 function levelComplete() {
   levelMgr.complete();
@@ -470,7 +520,8 @@ function applyChoice(upg) {
   if (upg.cost && economy.coins < upg.cost) return;
   if (upg.cost) economy.coins -= upg.cost;
   upgrades.apply(upg);
-  startLevel();
+  save();
+  // stay on shop so player can buy more or continue
 }
 function buyWeaponForSlot(type, slot) {
   if (fortress.buyWeapon(type, slot)) {
@@ -491,7 +542,10 @@ function update(dt) {
         e.rewarded = true;
       }
     }
-    if (spawner.cleared() && fortress.health > 0) levelComplete();
+    if (spawner.cleared() && fortress.health > 0) {
+      if (spawner.currentWave < spawner.totalWaves) waveCleared();
+      else levelComplete();
+    }
     if (fortress.health <= 0) state = 'menu';
   } else if (state === 'ad') {
     const r = adSystem.update(dt);
@@ -538,13 +592,13 @@ function draw() {
     ctx.fillStyle = '#fff';
     ctx.font = '20px Segoe UI';
     ctx.textAlign = 'left';
-    ctx.fillText(`Level ${levelMgr.currentLevel}  •  ${levelMgr.getArea()}`, 18, 38);
+    ctx.fillText(`Level ${levelMgr.currentLevel}  •  Wave ${spawner.currentWave}/${spawner.totalWaves}  •  ${levelMgr.getArea()}`, 18, 38);
     ctx.fillStyle = '#fd0';
-    ctx.fillText(`Coins ${economy.coins}`, 400, 38);
+    ctx.fillText(`Coins ${economy.coins}`, 520, 38);
     ctx.fillStyle = '#4df';
     ctx.fillText(`Tech ${economy.tech}`, 600, 38);
     ctx.fillText(`Hero Lv.${hero.level}`, 800, 38);
-    let y = HEIGHT - 90;
+    let y = HEIGHT - 68;
     buttons = [];
     const abilityIcons = {
       'Air Strike': images.ability_airstrike,
@@ -552,8 +606,8 @@ function draw() {
       'Energy Shield': images.ability_shield,
       'Plasma Bomb': images.ability_plasma
     };
-    const iconSize = 70;
-    const spacing = 90;
+    const iconSize = 46;
+    const spacing = 58;
     const startX = WIDTH/2 - (Object.keys(hero.abilities).length * spacing) / 2;
     let idx = 0;
     for (const [name, a] of Object.entries(hero.abilities)) {
@@ -564,7 +618,7 @@ function draw() {
       // Dark rounded background so icons stand out on the wall
       ctx.fillStyle = 'rgba(0,0,0,0.55)';
       ctx.beginPath();
-      ctx.roundRect(rect.x - 4, rect.y - 4, iconSize + 8, iconSize + 8, 10);
+      ctx.roundRect(rect.x - 3, rect.y - 3, iconSize + 6, iconSize + 6, 8);
       ctx.fill();
       ctx.globalAlpha = a.cur <= 0 ? 1 : 0.4;
       if (validIcon) {
@@ -584,7 +638,7 @@ function draw() {
       ctx.fillStyle = '#fff';
       ctx.font = 'bold 11px Segoe UI';
       ctx.textAlign = 'center';
-      ctx.fillText(name.split(' ')[0], rect.x + iconSize/2, rect.y + iconSize + 14);
+      ctx.fillText(name.split(' ')[0], rect.x + iconSize/2, rect.y + iconSize + 12);
       if (a.cur > 0) {
         ctx.fillStyle = '#ff0';
         ctx.font = 'bold 16px Segoe UI';
@@ -593,12 +647,14 @@ function draw() {
       buttons.push({ rect, data: { type: 'ability', name } });
       idx++;
     }
-    const adR = { x: 18, y: HEIGHT - 52, w: 200, h: 40 };
+    const adR = { x: 14, y: HEIGHT - 48, w: 160, h: 34 };
     ctx.fillStyle = '#f80';
     ctx.fillRect(adR.x, adR.y, adR.w, adR.h);
     ctx.fillStyle = '#000';
-    ctx.font = '15px Segoe UI';
-    ctx.fillText('Watch Ad (Bonus)', adR.x + 14, adR.y + 26);
+    ctx.font = 'bold 13px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('Ad Bonus', adR.x + adR.w/2, adR.y + 22);
+    ctx.textAlign = 'left';
     buttons.push({ rect: adR, data: { type: 'ad_double' } });
   } else if (state === 'upgrade') {
     ctx.fillStyle = 'rgba(0,0,0,0.82)';
@@ -606,15 +662,31 @@ function draw() {
     ctx.fillStyle = '#fff';
     ctx.font = '32px Segoe UI';
     ctx.textAlign = 'center';
-    ctx.fillText(`Level ${levelMgr.currentLevel - 1} Complete!  Coins: ${economy.coins}`, WIDTH/2, 80);
+    const isLevelDone = spawner.currentWave >= spawner.totalWaves;
+    const title = isLevelDone
+      ? `Level ${levelMgr.currentLevel - 1} Complete!  Coins: ${economy.coins}`
+      : `Wave ${spawner.currentWave} Cleared!  Coins: ${economy.coins}`;
+    ctx.fillText(title, WIDTH/2, 70);
     ctx.font = '18px Segoe UI';
-    ctx.fillText(`Tower Sections: ${fortress.sections}`, WIDTH/2, 110);
+    ctx.fillText(`Castle Levels: ${fortress.sections}   •   Next: Wave ${isLevelDone ? 1 : spawner.currentWave + 1}`, WIDTH/2, 100);
     buttons = [];
+    // Buy castle level
+    const secCost = fortress.sectionCost();
+    const canSec = fortress.sections < 7 && economy.coins >= secCost;
+    const secR = { x: WIDTH/2 - 160, y: 115, w: 320, h: 40 };
+    ctx.fillStyle = canSec ? '#48c' : '#555';
+    ctx.fillRect(secR.x, secR.y, secR.w, secR.h);
+    ctx.strokeStyle = '#fff';
+    ctx.strokeRect(secR.x, secR.y, secR.w, secR.h);
+    ctx.fillStyle = '#fff';
+    ctx.font = '16px Segoe UI';
+    ctx.fillText(fortress.sections < 7 ? `Add Castle Level (${secCost} coins)` : 'Castle Max Level', WIDTH/2, secR.y + 26);
+    buttons.push({ rect: secR, data: { type: 'buy_section' } });
     // Skills
     ctx.font = '20px Segoe UI';
-    ctx.fillText('Skills (spend coins)', WIDTH/2, 150);
+    ctx.fillText('Skills (spend coins)', WIDTH/2, 180);
     pendingChoices.forEach((u, i) => {
-      const rect = { x: WIDTH/2 - 240, y: 170 + i * 55, w: 480, h: 48 };
+      const rect = { x: WIDTH/2 - 240, y: 195 + i * 48, w: 480, h: 42 };
       const canBuy = economy.coins >= (u.cost || 0);
       ctx.fillStyle = canBuy ? '#28a' : '#555';
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
@@ -627,9 +699,9 @@ function draw() {
     // Weapon shop for empty slots
     const emptySlots = fortress.weapons.map((w, i) => w ? -1 : i).filter(i => i >= 0);
     if (emptySlots.length > 0) {
-      ctx.fillText('Buy Weapon for empty slot', WIDTH/2, 360);
+      ctx.fillText('Buy Weapon for empty slot', WIDTH/2, 350);
       WEAPON_SHOP.forEach((w, i) => {
-        const rect = { x: 40 + (i % 3) * 400, y: 380 + Math.floor(i / 3) * 50, w: 370, h: 42 };
+        const rect = { x: 40 + (i % 3) * 400, y: 365 + Math.floor(i / 3) * 48, w: 370, h: 40 };
         const canBuy = economy.coins >= w.cost;
         ctx.fillStyle = canBuy ? '#a52' : '#555';
         ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
@@ -646,7 +718,8 @@ function draw() {
     ctx.fillRect(contR.x, contR.y, contR.w, contR.h);
     ctx.fillStyle = '#fff';
     ctx.font = '20px Segoe UI';
-    ctx.fillText('Continue', WIDTH/2, contR.y + 28);
+    const contLabel = (spawner.currentWave >= spawner.totalWaves) ? 'Next Level' : 'Next Wave';
+    ctx.fillText(contLabel, WIDTH/2, contR.y + 28);
     buttons.push({ rect: contR, data: { type: 'continue' } });
   } else if (state === 'ad') {
     ctx.fillStyle = '#1a2230';
@@ -682,7 +755,11 @@ canvas.addEventListener('click', e => {
         if (b.data.type === 'ability') hero.useAbility(b.data.name, spawner.enemies, fortress);
         else if (b.data.type === 'ad_double') { adSystem.start('double'); state = 'ad'; }
         else if (b.data.type === 'buy_weapon') { buyWeaponForSlot(b.data.weapon, b.data.slot); }
-        else if (b.data.type === 'continue') startLevel();
+        else if (b.data.type === 'buy_section') { fortress.buySection(); save(); }
+        else if (b.data.type === 'continue') {
+          if (spawner.currentWave < spawner.totalWaves) nextWave();
+          else startLevel();
+        }
         else applyChoice(b.data);
         break;
       }
