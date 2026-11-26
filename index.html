@@ -169,7 +169,7 @@ class Fortress {
   }
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
-    if (images.fortress) ctx.drawImage(images.fortress, this.x - 70, y - 160, 140, 160);
+    if (images.fortress) ctx.drawImage(images.fortress, this.x - 90, y - 200, 180, 200);
     ctx.fillStyle = '#111';
     ctx.fillRect(this.x - 60, y - 180, 120, 10);
     ctx.fillStyle = '#4af';
@@ -218,7 +218,7 @@ class Hero {
     }
   }
   draw() {
-    if (images.hero) ctx.drawImage(images.hero, this.x - 25, this.y - 70, 50, 70);
+    if (images.hero) ctx.drawImage(images.hero, this.x - 35, this.y - 90, 70, 90);
   }
 }
 
@@ -255,7 +255,7 @@ class Enemy {
     return false;
   }
   draw() {
-    const size = this.type === 'Boss' ? 90 : this.type === 'Tank' ? 70 : 50;
+    const size = this.type === 'Boss' ? 120 : this.type === 'Tank' ? 90 : 65;
     const yOff = this.type === 'Flying' ? -40 : 0;
     const bob = Math.sin(this.bob) * 3;
     if (this.sprite) ctx.drawImage(this.sprite, this.x - size/2, this.y - size + yOff + bob, size, size);
