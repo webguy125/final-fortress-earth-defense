@@ -44,14 +44,14 @@ const HEIGHT = 720;
 const GROUND_Y = HEIGHT - 140;
 
 let state = 'menu';
-let fortress, hero, spawner, economy, upgrades, adSystem, levelMgr;
+let fortress, hero, spawner, economy, upgrades, adSystem, levelMgr, rewards;
 let pendingChoices = [];
 let lastTime = 0;
 let buttons = [];
 let particles = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 27;
+const totalImages = 28;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -88,6 +88,7 @@ loadImage('icon_health', 'sprites/icon_health.png');
 loadImage('icon_crit', 'sprites/icon_crit.png');
 loadImage('icon_castle', 'sprites/icon_castle.png');
 loadImage('btn_nextwave', 'sprites/btn_nextwave.png');
+loadImage('icon_chest', 'sprites/icon_chest.png');
 
 class Particle {
   constructor(x, y, color, life = 0.6, size = 4) {
@@ -482,6 +483,41 @@ class LevelManager {
   complete() { this.currentLevel++; }
 }
 
+class RewardSystem {
+  constructor() { this.claimed = []; this.pendingChest = null; }
+  nextMilestone(level) { return Math.ceil((level + 0.1) / 5) * 5; }
+  waveReward(wave, level) {
+    return { kind: 'wave', coins: 30 + wave * 20 + level * 8, tech: 1 + wave, label: `Wave ${wave} Chest` };
+  }
+  milestoneReward(level) {
+    return { kind: 'milestone', coins: 80 + level * 25, tech: 8 + level, label: `Level ${level} Milestone` };
+  }
+  setWaveChest(wave, level) { this.pendingChest = this.waveReward(wave, level); }
+  setMilestoneChest(level) { this.pendingChest = this.milestoneReward(level); }
+  claim() {
+    if (!this.pendingChest) return null;
+    const c = this.pendingChest;
+    economy.add(c.coins, c.tech);
+    if (c.kind === 'milestone') this.claimed.push(c.label);
+    this.pendingChest = null;
+    return c;
+  }
+  nextGoal() {
+    const lvl = levelMgr.currentLevel;
+    const next = this.nextMilestone(lvl);
+    const cheapest = WEAPON_SHOP.reduce((a, b) => a.cost < b.cost ? a : b);
+    const need = Math.max(0, cheapest.cost - economy.coins);
+    const wavesLeft = spawner.totalWaves - spawner.currentWave + 1;
+    return {
+      goal: wavesLeft <= 1 ? 'Clear this wave for chest + shop' : `Clear wave for chest (${wavesLeft} left)`,
+      milestone: `Level ${next} Milestone`,
+      progress: (lvl % 5) / 5,
+      needCoins: need,
+      cheapest: cheapest.type
+    };
+  }
+}
+
 function init() {
   fortress = new Fortress();
   hero = new Hero();
@@ -490,6 +526,7 @@ function init() {
   upgrades = new UpgradeSystem();
   adSystem = new AdSystem();
   levelMgr = new LevelManager();
+  rewards = new RewardSystem();
   load();
 }
 function load() {
@@ -498,11 +535,13 @@ function load() {
     const d = JSON.parse(s);
     economy.coins = d.coins || 0; economy.tech = d.tech || 0;
     levelMgr.currentLevel = d.level || 1; hero.level = d.heroLevel || 1;
+    if (d.claimed) rewards.claimed = d.claimed;
   }
 }
 function save() {
   localStorage.setItem('finalFortress', JSON.stringify({
-    coins: economy.coins, tech: economy.tech, level: levelMgr.currentLevel, heroLevel: hero.level
+    coins: economy.coins, tech: economy.tech, level: levelMgr.currentLevel, heroLevel: hero.level,
+    claimed: rewards.claimed
   }));
 }
 function startLevel() {
@@ -520,13 +559,17 @@ function nextWave() {
   particles = [];
 }
 function waveCleared() {
+  rewards.setWaveChest(spawner.currentWave, levelMgr.currentLevel);
   pendingChoices = upgrades.generate();
   state = 'upgrade';
   save();
 }
 function levelComplete() {
+  const finished = levelMgr.currentLevel;
   levelMgr.complete();
   fortress.updateSections(levelMgr.currentLevel);
+  if (finished % 5 === 0) rewards.setMilestoneChest(finished);
+  else rewards.setWaveChest(spawner.currentWave, finished);
   pendingChoices = upgrades.generate();
   state = 'upgrade';
   save();
@@ -613,6 +656,25 @@ function draw() {
     ctx.fillStyle = '#4df';
     ctx.fillText(`Tech ${economy.tech}`, 600, 38);
     ctx.fillText(`Hero Lv.${hero.level}`, 800, 38);
+    // Next goal panel
+    const ng = rewards.nextGoal();
+    ctx.fillStyle = 'rgba(8,12,20,0.75)';
+    ctx.beginPath(); ctx.roundRect(16, 68, 340, 68, 8); ctx.fill();
+    ctx.fillStyle = '#fd0'; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'left';
+    ctx.fillText(ng.goal, 26, 88);
+    ctx.fillStyle = '#8cf'; ctx.font = '12px Segoe UI';
+    ctx.fillText(`Next: ${ng.milestone}`, 26, 106);
+    // progress bar
+    const barX = 26, barY = 112, barW = 200, barH = 6;
+    ctx.fillStyle = '#222'; ctx.fillRect(barX, barY, barW, barH);
+    ctx.fillStyle = '#4cf'; ctx.fillRect(barX, barY, barW * ng.progress, barH);
+    if (ng.needCoins > 0) {
+      ctx.fillStyle = '#fa4'; ctx.font = '11px Segoe UI';
+      ctx.fillText(`${ng.needCoins} coins to ${ng.cheapest}`, 26, 128);
+    } else {
+      ctx.fillStyle = '#4f4'; ctx.font = '11px Segoe UI';
+      ctx.fillText(`Can afford ${ng.cheapest}!`, 26, 128);
+    }
     let y = HEIGHT - 68;
     buttons = [];
     const abilityIcons = {
@@ -687,6 +749,21 @@ function draw() {
     ctx.fillStyle = '#fd0';
     ctx.fillText(`Coins: ${economy.coins}   •   Castle Levels: ${fortress.sections}`, WIDTH/2, 78);
 
+    // Claimable chest
+    if (rewards.pendingChest) {
+      const chest = rewards.pendingChest;
+      const chR = { x: WIDTH/2 - 200, y: 90, w: 400, h: 70 };
+      ctx.fillStyle = 'rgba(120,80,20,0.95)';
+      ctx.beginPath(); ctx.roundRect(chR.x, chR.y, chR.w, chR.h, 12); ctx.fill();
+      ctx.strokeStyle = '#fd0'; ctx.lineWidth = 2; ctx.stroke();
+      if (images.icon_chest && images.icon_chest.complete) ctx.drawImage(images.icon_chest, chR.x + 6, chR.y + 5, 60, 60);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'left';
+      ctx.fillText(chest.label, chR.x + 76, chR.y + 28);
+      ctx.fillStyle = '#fd0'; ctx.font = '14px Segoe UI';
+      ctx.fillText(`Claim +${chest.coins} coins  +${chest.tech} tech`, chR.x + 76, chR.y + 50);
+      buttons.push({ rect: chR, data: { type: 'claim_chest' } });
+    }
+
     const skillIcons = {
       damage: images.icon_damage, fire_rate: images.icon_firerate, shield: images.icon_shield,
       hero_damage: images.icon_hero, coins: images.icon_coins, health: images.icon_health, crit: images.icon_crit
@@ -702,7 +779,7 @@ function draw() {
     // Castle level card
     const secCost = fortress.sectionCost();
     const canSec = fortress.sections < 7 && economy.coins >= secCost;
-    const secR = { x: WIDTH/2 - 180, y: 96, w: 360, h: 72 };
+    const secR = { x: WIDTH/2 - 180, y: rewards.pendingChest ? 170 : 96, w: 360, h: 72 };
     ctx.fillStyle = canSec ? 'rgba(30,60,110,0.9)' : 'rgba(40,40,40,0.8)';
     ctx.beginPath(); ctx.roundRect(secR.x, secR.y, secR.w, secR.h, 12); ctx.fill();
     ctx.strokeStyle = canSec ? '#6cf' : '#666'; ctx.lineWidth = 2; ctx.stroke();
@@ -715,12 +792,12 @@ function draw() {
 
     // Skills as icon cards
     ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
-    ctx.fillText('Skills', WIDTH/2, 190);
+    ctx.fillText('Skills', WIDTH/2, rewards.pendingChest ? 260 : 190);
     const skW = 220, skH = 100, skGap = 16;
     const skTotal = pendingChoices.length * skW + (pendingChoices.length - 1) * skGap;
     const skStart = WIDTH/2 - skTotal/2;
     pendingChoices.forEach((u, i) => {
-      const rect = { x: skStart + i * (skW + skGap), y: 200, w: skW, h: skH };
+      const rect = { x: skStart + i * (skW + skGap), y: rewards.pendingChest ? 270 : 200, w: skW, h: skH };
       const canBuy = economy.coins >= (u.cost || 0);
       ctx.fillStyle = canBuy ? 'rgba(20,70,100,0.9)' : 'rgba(40,40,40,0.8)';
       ctx.beginPath(); ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 12); ctx.fill();
@@ -738,12 +815,12 @@ function draw() {
     const emptySlots = fortress.weapons.map((w, i) => w ? -1 : i).filter(i => i >= 0);
     if (emptySlots.length > 0) {
       ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
-      ctx.fillText('Buy Weapon', WIDTH/2, 328);
+      ctx.fillText('Buy Weapon', WIDTH/2, rewards.pendingChest ? 390 : 328);
       const wW = 180, wH = 130, wGap = 12;
       const wTotal = WEAPON_SHOP.length * wW + (WEAPON_SHOP.length - 1) * wGap;
       const wStart = Math.max(20, WIDTH/2 - wTotal/2);
       WEAPON_SHOP.forEach((w, i) => {
-        const rect = { x: wStart + i * (wW + wGap), y: 338, w: wW, h: wH };
+        const rect = { x: wStart + i * (wW + wGap), y: rewards.pendingChest ? 400 : 338, w: wW, h: wH };
         const canBuy = economy.coins >= w.cost;
         ctx.fillStyle = canBuy ? 'rgba(90,50,20,0.9)' : 'rgba(40,40,40,0.8)';
         ctx.beginPath(); ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 12); ctx.fill();
@@ -805,6 +882,7 @@ canvas.addEventListener('click', e => {
         else if (b.data.type === 'ad_double') { adSystem.start('double'); state = 'ad'; }
         else if (b.data.type === 'buy_weapon') { buyWeaponForSlot(b.data.weapon, b.data.slot); }
         else if (b.data.type === 'buy_section') { fortress.buySection(); save(); }
+        else if (b.data.type === 'claim_chest') { rewards.claim(); save(); }
         else if (b.data.type === 'continue') {
           if (spawner.currentWave < spawner.totalWaves) nextWave();
           else startLevel();
