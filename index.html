@@ -51,7 +51,7 @@ let buttons = [];
 let particles = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 9;
+const totalImages = 11;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -69,7 +69,8 @@ loadImage('tank', 'sprites/tank.png');
 loadImage('flying', 'sprites/flying.png');
 loadImage('boss', 'sprites/boss.png');
 loadImage('background', 'sprites/background_side.jpg');
-loadImage('elite', 'sprites/warrior.png');
+loadImage('section1', 'sprites/section1.png');
+loadImage('section2', 'sprites/section2.png');
 
 class Particle {
   constructor(x, y, color, life = 0.6, size = 4) {
@@ -191,34 +192,31 @@ class Fortress {
   }
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
-    // Draw the castle sprite as the base
+    // Base castle
     if (images.fortress) {
       ctx.drawImage(images.fortress, this.x - 90, y - 180, 180, 180);
     }
-    // Stack extra section indicators above the castle
-    const sectionH = 28;
-    const baseW = 100;
+    // Extra sections only if unlocked (sections > 3)
+    const sectionH = 42;
     for (let i = 1; i < this.sections; i++) {
       const sy = y - 180 - i * sectionH;
-      ctx.fillStyle = '#2c3648';
-      ctx.fillRect(this.x - baseW/2, sy, baseW, sectionH - 3);
-      ctx.strokeStyle = '#7af';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(this.x - baseW/2, sy, baseW, sectionH - 3);
+      const sprite = (i % 2 === 1) ? images.section1 : images.section2;
+      if (sprite) {
+        ctx.drawImage(sprite, this.x - 70, sy, 140, sectionH - 2);
+      } else {
+        ctx.fillStyle = '#2c3648';
+        ctx.fillRect(this.x - 55, sy, 110, sectionH - 4);
+        ctx.strokeStyle = '#7af';
+        ctx.strokeRect(this.x - 55, sy, 110, sectionH - 4);
+      }
       const w = this.weapons[i];
       if (w) {
         ctx.fillStyle = '#ffaa00';
-        ctx.fillRect(this.x - baseW/2 + 6, sy + 6, 14, 8);
-        ctx.fillStyle = '#fff';
-        ctx.font = '9px Segoe UI';
-        ctx.fillText(w.type.split(' ')[0], this.x - baseW/2 + 24, sy + 14);
-      } else {
-        ctx.fillStyle = '#555';
-        ctx.fillRect(this.x - baseW/2 + 6, sy + 8, 12, 6);
+        ctx.fillRect(this.x - 50, sy + 8, 14, 8);
       }
     }
-    // Health / shield bars above everything
-    const barY = y - 190 - (this.sections - 1) * sectionH;
+    // Bars
+    const barY = y - 200 - (this.sections - 1) * sectionH;
     ctx.fillStyle = '#111';
     ctx.fillRect(this.x - 70, barY, 140, 10);
     ctx.fillStyle = '#4af';
