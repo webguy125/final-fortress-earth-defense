@@ -516,7 +516,7 @@ function draw() {
     let y = HEIGHT - 175;
     buttons = [];
     for (const [name, a] of Object.entries(hero.abilities)) {
-      const rect = { x: WIDTH - 240, y, w: 220, h: 34 };
+      const rect = { x: 20, y, w: 220, h: 34 };
       ctx.fillStyle = a.cur <= 0 ? '#2a8' : '#555';
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       ctx.fillStyle = '#fff';
