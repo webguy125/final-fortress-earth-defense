@@ -191,36 +191,40 @@ class Fortress {
   }
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
-    const sectionH = 38;
-    const baseW = 110;
-    // Draw stacked sections
-    for (let i = 0; i < this.sections; i++) {
-      const sy = y - 40 - i * sectionH;
-      ctx.fillStyle = i === 0 ? '#3a4558' : '#2c3648';
-      ctx.fillRect(this.x - baseW/2, sy, baseW, sectionH - 4);
+    // Draw the castle sprite as the base
+    if (images.fortress) {
+      ctx.drawImage(images.fortress, this.x - 90, y - 180, 180, 180);
+    }
+    // Stack extra section indicators above the castle
+    const sectionH = 28;
+    const baseW = 100;
+    for (let i = 1; i < this.sections; i++) {
+      const sy = y - 180 - i * sectionH;
+      ctx.fillStyle = '#2c3648';
+      ctx.fillRect(this.x - baseW/2, sy, baseW, sectionH - 3);
       ctx.strokeStyle = '#7af';
       ctx.lineWidth = 2;
-      ctx.strokeRect(this.x - baseW/2, sy, baseW, sectionH - 4);
-      // weapon indicator
+      ctx.strokeRect(this.x - baseW/2, sy, baseW, sectionH - 3);
       const w = this.weapons[i];
       if (w) {
         ctx.fillStyle = '#ffaa00';
-        ctx.fillRect(this.x - baseW/2 + 8, sy + 8, 18, 10);
+        ctx.fillRect(this.x - baseW/2 + 6, sy + 6, 14, 8);
         ctx.fillStyle = '#fff';
-        ctx.font = '10px Segoe UI';
-        ctx.fillText(w.type.split(' ')[0], this.x - baseW/2 + 30, sy + 18);
+        ctx.font = '9px Segoe UI';
+        ctx.fillText(w.type.split(' ')[0], this.x - baseW/2 + 24, sy + 14);
       } else {
         ctx.fillStyle = '#555';
-        ctx.fillRect(this.x - baseW/2 + 8, sy + 10, 14, 8);
+        ctx.fillRect(this.x - baseW/2 + 6, sy + 8, 12, 6);
       }
     }
-    // bars
+    // Health / shield bars above everything
+    const barY = y - 190 - (this.sections - 1) * sectionH;
     ctx.fillStyle = '#111';
-    ctx.fillRect(this.x - 70, y - 50 - this.sections * sectionH, 140, 10);
+    ctx.fillRect(this.x - 70, barY, 140, 10);
     ctx.fillStyle = '#4af';
-    ctx.fillRect(this.x - 70, y - 50 - this.sections * sectionH, 140 * (this.shield / this.maxShield), 10);
+    ctx.fillRect(this.x - 70, barY, 140 * (this.shield / this.maxShield), 10);
     ctx.fillStyle = '#e44';
-    ctx.fillRect(this.x - 70, y - 38 - this.sections * sectionH, 140 * (this.health / this.maxHealth), 7);
+    ctx.fillRect(this.x - 70, barY + 12, 140 * (this.health / this.maxHealth), 7);
   }
 }
 
