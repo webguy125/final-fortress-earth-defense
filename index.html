@@ -101,15 +101,15 @@ class Weapon {
     this.cooldown = 0;
   }
   baseDamage() {
-    const b = { 'Machine Gun': 8, 'Missile Launcher': 45, 'Laser Cannon': 15, 'Plasma Cannon': 25, 'Railgun': 120 };
+    const b = { 'Machine Gun': 8, 'Laser Gun': 15, 'Plasma Gun': 25, 'Railgun': 120, 'Freeze Cannon': 6, 'Air Gun': 12 };
     return (b[this.type] || 10) * (1 + (this.level - 1) * 0.15);
   }
   baseFireRate() {
-    const r = { 'Machine Gun': 8, 'Missile Launcher': 0.6, 'Laser Cannon': 4, 'Plasma Cannon': 2, 'Railgun': 0.35 };
+    const r = { 'Machine Gun': 8, 'Laser Gun': 4, 'Plasma Gun': 2, 'Railgun': 0.35, 'Freeze Cannon': 1.2, 'Air Gun': 5 };
     return (r[this.type] || 2) * (1 + (this.level - 1) * 0.08);
   }
   baseRange() {
-    const r = { 'Machine Gun': 420, 'Missile Launcher': 620, 'Laser Cannon': 500, 'Plasma Cannon': 480, 'Railgun': 700 };
+    const r = { 'Machine Gun': 420, 'Laser Gun': 500, 'Plasma Gun': 480, 'Railgun': 700, 'Freeze Cannon': 380, 'Air Gun': 450 };
     return (r[this.type] || 400) + this.level * 12;
   }
   update(dt) { if (this.cooldown > 0) this.cooldown -= dt; }
@@ -122,6 +122,15 @@ class Weapon {
   }
 }
 
+const WEAPON_SHOP = [
+  { type: 'Machine Gun', cost: 50, desc: 'Fast fire' },
+  { type: 'Laser Gun', cost: 80, desc: 'Precise beams' },
+  { type: 'Plasma Gun', cost: 120, desc: 'Heavy energy' },
+  { type: 'Railgun', cost: 200, desc: 'Massive damage' },
+  { type: 'Freeze Cannon', cost: 150, desc: 'Slows enemies' },
+  { type: 'Air Gun', cost: 100, desc: 'Anti-air' }
+];
+
 class Fortress {
   constructor() {
     this.x = WIDTH - 180;
@@ -129,13 +138,28 @@ class Fortress {
     this.health = 1000; this.maxHealth = 1000;
     this.shield = 500; this.maxShield = 500;
     this.shieldRegen = 5; this.coinMult = 1;
-    this.weaponSlots = [new Weapon('Machine Gun')];
-    this.unlockedSlots = 1; this.bob = 0;
+    this.sections = 3; // start with 3
+    this.weapons = [new Weapon('Machine Gun'), null, null]; // one per section
+    this.bob = 0;
+  }
+  updateSections(level) {
+    if (level >= 5 && this.sections < 4) { this.sections = 4; this.weapons.push(null); }
+    if (level >= 15 && this.sections < 5) { this.sections = 5; this.weapons.push(null); }
+    if (level >= 30 && this.sections < 6) { this.sections = 6; this.weapons.push(null); }
+    if (level >= 60 && this.sections < 7) { this.sections = 7; this.weapons.push(null); }
+  }
+  buyWeapon(type, slot) {
+    const item = WEAPON_SHOP.find(w => w.type === type);
+    if (!item || economy.coins < item.cost || slot >= this.sections) return false;
+    economy.coins -= item.cost;
+    this.weapons[slot] = new Weapon(type);
+    return true;
   }
   update(dt, enemies) {
     this.bob += dt * 1.2;
     if (this.shield < this.maxShield) this.shield = Math.min(this.maxShield, this.shield + this.shieldRegen * dt);
-    for (const w of this.weaponSlots) {
+    for (let i = 0; i < this.sections; i++) {
+      const w = this.weapons[i];
       if (!w) continue;
       w.update(dt);
       if (w.canFire()) {
@@ -144,7 +168,8 @@ class Fortress {
           const shot = w.fire();
           if (shot) {
             target.takeDamage(shot.damage);
-            for (let i = 0; i < 8; i++) particles.push(new Particle(this.x - 20 + (Math.random()-0.5)*30, this.y - 80, shot.crit ? '#ffee44' : '#88ccff', 0.35, 6));
+            const yOff = -40 - i * 35;
+            for (let p = 0; p < 6; p++) particles.push(new Particle(this.x - 15 + (Math.random()-0.5)*20, this.y + yOff, shot.crit ? '#ffee44' : '#88ccff', 0.3, 5));
           }
         }
       }
@@ -164,18 +189,38 @@ class Fortress {
     if (amount > 0) this.health -= amount;
     return this.health > 0;
   }
-  unlockSlot() {
-    if (this.unlockedSlots < 5) { this.unlockedSlots++; this.weaponSlots.push(new Weapon('Machine Gun')); }
-  }
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
-    if (images.fortress) ctx.drawImage(images.fortress, this.x - 90, y - 200, 180, 200);
+    const sectionH = 38;
+    const baseW = 110;
+    // Draw stacked sections
+    for (let i = 0; i < this.sections; i++) {
+      const sy = y - 40 - i * sectionH;
+      ctx.fillStyle = i === 0 ? '#3a4558' : '#2c3648';
+      ctx.fillRect(this.x - baseW/2, sy, baseW, sectionH - 4);
+      ctx.strokeStyle = '#7af';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(this.x - baseW/2, sy, baseW, sectionH - 4);
+      // weapon indicator
+      const w = this.weapons[i];
+      if (w) {
+        ctx.fillStyle = '#ffaa00';
+        ctx.fillRect(this.x - baseW/2 + 8, sy + 8, 18, 10);
+        ctx.fillStyle = '#fff';
+        ctx.font = '10px Segoe UI';
+        ctx.fillText(w.type.split(' ')[0], this.x - baseW/2 + 30, sy + 18);
+      } else {
+        ctx.fillStyle = '#555';
+        ctx.fillRect(this.x - baseW/2 + 8, sy + 10, 14, 8);
+      }
+    }
+    // bars
     ctx.fillStyle = '#111';
-    ctx.fillRect(this.x - 60, y - 180, 120, 10);
+    ctx.fillRect(this.x - 70, y - 50 - this.sections * sectionH, 140, 10);
     ctx.fillStyle = '#4af';
-    ctx.fillRect(this.x - 60, y - 180, 120 * (this.shield / this.maxShield), 10);
+    ctx.fillRect(this.x - 70, y - 50 - this.sections * sectionH, 140 * (this.shield / this.maxShield), 10);
     ctx.fillStyle = '#e44';
-    ctx.fillRect(this.x - 60, y - 168, 120 * (this.health / this.maxHealth), 7);
+    ctx.fillRect(this.x - 70, y - 38 - this.sections * sectionH, 140 * (this.health / this.maxHealth), 7);
   }
 }
 
@@ -304,31 +349,29 @@ class EnemySpawner {
   cleared() { return this.toSpawn <= 0 && this.enemies.every(e => !e.alive); }
 }
 
-class Economy { constructor() { this.coins = 0; this.tech = 0; } add(c, t) { this.coins += c; this.tech += t; } }
+class Economy { constructor() { this.coins = 50; this.tech = 0; } add(c, t) { this.coins += c; this.tech += t; } }
 class UpgradeSystem {
   generate() {
     const pool = [
-      { name: '+15% Weapon Damage', type: 'damage', val: 0.15 },
-      { name: '+20% Fire Rate', type: 'fire_rate', val: 0.20 },
-      { name: '+25% Shield Capacity', type: 'shield', val: 0.25 },
-      { name: '+12% Hero Damage', type: 'hero_damage', val: 0.12 },
-      { name: '+15% Coin Rewards', type: 'coins', val: 0.15 },
-      { name: '+20% Fortress Health', type: 'health', val: 0.20 },
-      { name: 'Unlock Next Weapon Slot', type: 'slot', val: 1 },
-      { name: '+10% Crit Chance', type: 'crit', val: 0.10 }
+      { name: '+15% Weapon Damage', type: 'damage', val: 0.15, cost: 80 },
+      { name: '+20% Fire Rate', type: 'fire_rate', val: 0.20, cost: 100 },
+      { name: '+25% Shield Capacity', type: 'shield', val: 0.25, cost: 90 },
+      { name: '+12% Hero Damage', type: 'hero_damage', val: 0.12, cost: 70 },
+      { name: '+15% Coin Rewards', type: 'coins', val: 0.15, cost: 60 },
+      { name: '+20% Fortress Health', type: 'health', val: 0.20, cost: 110 },
+      { name: '+10% Crit Chance', type: 'crit', val: 0.10, cost: 120 }
     ];
     return pool.sort(() => Math.random() - 0.5).slice(0, 3);
   }
   apply(upg) {
     const v = upg.val;
-    if (upg.type === 'damage') fortress.weaponSlots.forEach(w => w && (w.damage *= 1+v));
-    else if (upg.type === 'fire_rate') fortress.weaponSlots.forEach(w => w && (w.fireRate *= 1+v));
+    if (upg.type === 'damage') fortress.weapons.forEach(w => w && (w.damage *= 1+v));
+    else if (upg.type === 'fire_rate') fortress.weapons.forEach(w => w && (w.fireRate *= 1+v));
     else if (upg.type === 'shield') { fortress.maxShield *= 1+v; fortress.shield = fortress.maxShield; }
     else if (upg.type === 'health') { fortress.maxHealth *= 1+v; fortress.health = fortress.maxHealth; }
     else if (upg.type === 'hero_damage') hero.damage *= 1+v;
     else if (upg.type === 'coins') fortress.coinMult *= 1+v;
-    else if (upg.type === 'slot') fortress.unlockSlot();
-    else if (upg.type === 'crit') fortress.weaponSlots.forEach(w => w && (w.critChance = Math.min(0.55, w.critChance + v)));
+    else if (upg.type === 'crit') fortress.weapons.forEach(w => w && (w.critChance = Math.min(0.55, w.critChance + v)));
   }
 }
 class AdSystem {
@@ -377,6 +420,7 @@ function save() {
 }
 function startLevel() {
   state = 'playing';
+  fortress.updateSections(levelMgr.currentLevel);
   spawner.start(levelMgr.currentLevel);
   fortress.health = fortress.maxHealth;
   fortress.shield = fortress.maxShield;
@@ -384,13 +428,22 @@ function startLevel() {
 }
 function levelComplete() {
   levelMgr.complete();
+  fortress.updateSections(levelMgr.currentLevel);
   pendingChoices = upgrades.generate();
   state = 'upgrade';
   save();
 }
 function applyChoice(upg) {
-  if (upg.type === 'ad_both') { adSystem.start('both', pendingChoices); state = 'ad'; return; }
-  upgrades.apply(upg); startLevel();
+  if (upg.cost && economy.coins < upg.cost) return;
+  if (upg.cost) economy.coins -= upg.cost;
+  upgrades.apply(upg);
+  startLevel();
+}
+function buyWeaponForSlot(type, slot) {
+  if (fortress.buyWeapon(type, slot)) {
+    save();
+    // stay on shop so player can buy more or continue
+  }
 }
 function update(dt) {
   particles = particles.filter(p => p.life > 0);
@@ -478,30 +531,53 @@ function draw() {
     ctx.fillText('Watch Ad (Bonus)', adR.x + 14, adR.y + 26);
     buttons.push({ rect: adR, data: { type: 'ad_double' } });
   } else if (state === 'upgrade') {
-    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillStyle = 'rgba(0,0,0,0.82)';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     ctx.fillStyle = '#fff';
-    ctx.font = '36px Segoe UI';
+    ctx.font = '32px Segoe UI';
     ctx.textAlign = 'center';
-    ctx.fillText(`Level ${levelMgr.currentLevel - 1} Complete!`, WIDTH/2, 150);
-    ctx.font = '22px Segoe UI';
+    ctx.fillText(`Level ${levelMgr.currentLevel - 1} Complete!  Coins: ${economy.coins}`, WIDTH/2, 80);
+    ctx.font = '18px Segoe UI';
+    ctx.fillText(`Tower Sections: ${fortress.sections}`, WIDTH/2, 110);
     buttons = [];
+    // Skills
+    ctx.font = '20px Segoe UI';
+    ctx.fillText('Skills (spend coins)', WIDTH/2, 150);
     pendingChoices.forEach((u, i) => {
-      const rect = { x: WIDTH/2 - 220, y: 200 + i * 78, w: 440, h: 60 };
-      ctx.fillStyle = '#28a';
+      const rect = { x: WIDTH/2 - 240, y: 170 + i * 55, w: 480, h: 48 };
+      const canBuy = economy.coins >= (u.cost || 0);
+      ctx.fillStyle = canBuy ? '#28a' : '#555';
       ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
       ctx.strokeStyle = '#fff';
       ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
       ctx.fillStyle = '#fff';
-      ctx.fillText(u.name, WIDTH/2, rect.y + 38);
+      ctx.fillText(`${u.name}  —  ${u.cost || 0} coins`, WIDTH/2, rect.y + 30);
       buttons.push({ rect, data: u });
     });
-    const adR = { x: WIDTH/2 - 170, y: 510, w: 340, h: 46 };
-    ctx.fillStyle = '#f80';
-    ctx.fillRect(adR.x, adR.y, adR.w, adR.h);
-    ctx.fillStyle = '#000';
-    ctx.fillText('Watch Ad: Claim Both', WIDTH/2, adR.y + 30);
-    buttons.push({ rect: adR, data: { type: 'ad_both' } });
+    // Weapon shop for empty slots
+    const emptySlots = fortress.weapons.map((w, i) => w ? -1 : i).filter(i => i >= 0);
+    if (emptySlots.length > 0) {
+      ctx.fillText('Buy Weapon for empty slot', WIDTH/2, 360);
+      WEAPON_SHOP.forEach((w, i) => {
+        const rect = { x: 40 + (i % 3) * 400, y: 380 + Math.floor(i / 3) * 50, w: 370, h: 42 };
+        const canBuy = economy.coins >= w.cost;
+        ctx.fillStyle = canBuy ? '#a52' : '#555';
+        ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.strokeStyle = '#fff';
+        ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+        ctx.fillStyle = '#fff';
+        ctx.font = '15px Segoe UI';
+        ctx.fillText(`${w.type} (${w.cost}) — ${w.desc}`, rect.x + 10, rect.y + 26);
+        buttons.push({ rect, data: { type: 'buy_weapon', weapon: w.type, slot: emptySlots[0] } });
+      });
+    }
+    const contR = { x: WIDTH/2 - 100, y: HEIGHT - 70, w: 200, h: 44 };
+    ctx.fillStyle = '#2a8';
+    ctx.fillRect(contR.x, contR.y, contR.w, contR.h);
+    ctx.fillStyle = '#fff';
+    ctx.font = '20px Segoe UI';
+    ctx.fillText('Continue', WIDTH/2, contR.y + 28);
+    buttons.push({ rect: contR, data: { type: 'continue' } });
   } else if (state === 'ad') {
     ctx.fillStyle = '#1a2230';
     ctx.fillRect(WIDTH/2 - 220, HEIGHT/2 - 95, 440, 190);
@@ -535,6 +611,8 @@ canvas.addEventListener('click', e => {
       if (x >= b.rect.x && x <= b.rect.x + b.rect.w && y >= b.rect.y && y <= b.rect.y + b.rect.h) {
         if (b.data.type === 'ability') hero.useAbility(b.data.name, spawner.enemies, fortress);
         else if (b.data.type === 'ad_double') { adSystem.start('double'); state = 'ad'; }
+        else if (b.data.type === 'buy_weapon') { buyWeaponForSlot(b.data.weapon, b.data.slot); }
+        else if (b.data.type === 'continue') startLevel();
         else applyChoice(b.data);
         break;
       }
