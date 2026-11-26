@@ -142,12 +142,12 @@ class Weapon {
 }
 
 const WEAPON_SHOP = [
-  { type: 'Machine Gun', cost: 50, desc: 'Fast fire' },
-  { type: 'Laser Gun', cost: 80, desc: 'Precise beams' },
-  { type: 'Plasma Gun', cost: 120, desc: 'Heavy energy' },
-  { type: 'Railgun', cost: 200, desc: 'Massive damage' },
-  { type: 'Freeze Cannon', cost: 150, desc: 'Slows enemies' },
-  { type: 'Air Gun', cost: 100, desc: 'Anti-air' }
+  { type: 'Machine Gun', cost: 120, desc: 'Fast fire' },
+  { type: 'Laser Gun', cost: 200, desc: 'Precise beams' },
+  { type: 'Plasma Gun', cost: 320, desc: 'Heavy energy' },
+  { type: 'Railgun', cost: 500, desc: 'Massive damage' },
+  { type: 'Freeze Cannon', cost: 380, desc: 'Slows enemies' },
+  { type: 'Air Gun', cost: 240, desc: 'Anti-air' }
 ];
 
 class Fortress {
@@ -174,7 +174,7 @@ class Fortress {
     this.weapons[slot] = new Weapon(type);
     return true;
   }
-  sectionCost() { return 120 + (this.sections - 3) * 80; }
+  sectionCost() { return 250 + (this.sections - 3) * 180; }
   buySection() {
     if (this.sections >= 7 || economy.coins < this.sectionCost()) return false;
     economy.coins -= this.sectionCost();
@@ -322,8 +322,8 @@ class Enemy {
     this.health = this.maxHealth = this.baseHealth() * scale;
     this.damage = this.baseDamage() * scale;
     this.speed = this.baseSpeed();
-    this.rewardCoins = Math.floor(12 * scale * (0.8 + Math.random() * 0.7));
-    this.rewardTech = Math.floor(2 * scale);
+    this.rewardCoins = Math.floor(4 * scale * (0.7 + Math.random() * 0.6));
+    this.rewardTech = Math.floor(1 * scale);
     this.rewardExp = Math.floor(6 * scale);
     this.x = -40 - Math.random() * 100;
     this.y = GROUND_Y;
@@ -399,15 +399,17 @@ class EnemySpawner {
     this.totalWaves = 4;
   }
   startLevel(level) {
-    this.scale = 1 + (level - 1) * 0.13;
+    this.scale = 1 + (level - 1) * 0.2;
     this.currentWave = 1;
     this.totalWaves = 4;
     this.startWave();
   }
   startWave() {
     const lvl = levelMgr.currentLevel;
-    this.toSpawn = 4 + Math.floor(lvl * 0.8) + (this.currentWave - 1) * 2;
-    this.interval = Math.max(0.45, 1.5 - lvl * 0.015);
+    const w = this.currentWave;
+    this.toSpawn = 5 + Math.floor(lvl * 1.4) + (w - 1) * 3;
+    this.interval = Math.max(0.35, 1.6 - lvl * 0.03 - (w - 1) * 0.12);
+    this.waveScale = this.scale * (1 + (w - 1) * 0.12);
     this.enemies = [];
     this.boss = false;
     this.timer = 0.4;
@@ -416,7 +418,7 @@ class EnemySpawner {
     this.timer += dt;
     if (this.toSpawn > 0 && this.timer >= this.interval) {
       this.timer = 0;
-      this.enemies.push(new Enemy(this.pickType(), this.scale));
+      this.enemies.push(new Enemy(this.pickType(), this.waveScale || this.scale));
       this.toSpawn--;
     }
     for (const e of this.enemies) if (e.alive) e.update(dt, fortress);
@@ -427,27 +429,27 @@ class EnemySpawner {
     }
   }
   pickType() {
-    const l = levelMgr.currentLevel, r = Math.random();
-    if (l < 6) return r < 0.65 ? 'Scout' : 'Warrior';
-    if (l < 16) return r < 0.35 ? 'Scout' : r < 0.7 ? 'Warrior' : 'Tank';
-    if (l < 32) return r < 0.2 ? 'Scout' : r < 0.45 ? 'Warrior' : r < 0.7 ? 'Tank' : r < 0.88 ? 'Flying' : 'Elite';
+    const l = levelMgr.currentLevel, w = this.currentWave, r = Math.random();
+    if (l < 4) return w < 3 ? (r < 0.7 ? 'Scout' : 'Warrior') : (r < 0.4 ? 'Scout' : 'Warrior');
+    if (l < 10) return r < 0.3 ? 'Scout' : r < 0.7 ? 'Warrior' : 'Tank';
+    if (l < 20) return r < 0.15 ? 'Scout' : r < 0.4 ? 'Warrior' : r < 0.7 ? 'Tank' : r < 0.88 ? 'Flying' : 'Elite';
     return ['Warrior','Tank','Flying','Elite'][Math.floor(Math.random()*4)];
   }
   cleared() { return this.toSpawn <= 0 && this.enemies.every(e => !e.alive); }
 }
 function lvlIsBoss() { return levelMgr.currentLevel % 5 === 0; }
 
-class Economy { constructor() { this.coins = 50; this.tech = 0; } add(c, t) { this.coins += c; this.tech += t; } }
+class Economy { constructor() { this.coins = 20; this.tech = 0; } add(c, t) { this.coins += c; this.tech += t; } }
 class UpgradeSystem {
   generate() {
     const pool = [
-      { name: '+15% Weapon Damage', type: 'damage', val: 0.15, cost: 80 },
-      { name: '+20% Fire Rate', type: 'fire_rate', val: 0.20, cost: 100 },
-      { name: '+25% Shield Capacity', type: 'shield', val: 0.25, cost: 90 },
-      { name: '+12% Hero Damage', type: 'hero_damage', val: 0.12, cost: 70 },
-      { name: '+15% Coin Rewards', type: 'coins', val: 0.15, cost: 60 },
-      { name: '+20% Fortress Health', type: 'health', val: 0.20, cost: 110 },
-      { name: '+10% Crit Chance', type: 'crit', val: 0.10, cost: 120 }
+      { name: '+15% Weapon Damage', type: 'damage', val: 0.15, cost: 140 },
+      { name: '+20% Fire Rate', type: 'fire_rate', val: 0.20, cost: 160 },
+      { name: '+25% Shield Capacity', type: 'shield', val: 0.25, cost: 150 },
+      { name: '+12% Hero Damage', type: 'hero_damage', val: 0.12, cost: 120 },
+      { name: '+15% Coin Rewards', type: 'coins', val: 0.15, cost: 100 },
+      { name: '+20% Fortress Health', type: 'health', val: 0.20, cost: 180 },
+      { name: '+10% Crit Chance', type: 'crit', val: 0.10, cost: 200 }
     ];
     return pool.sort(() => Math.random() - 0.5).slice(0, 3);
   }
@@ -487,10 +489,10 @@ class RewardSystem {
   constructor() { this.claimed = []; this.pendingChest = null; }
   nextMilestone(level) { return Math.ceil((level + 0.1) / 5) * 5; }
   waveReward(wave, level) {
-    return { kind: 'wave', coins: 30 + wave * 20 + level * 8, tech: 1 + wave, label: `Wave ${wave} Chest` };
+    return { kind: 'wave', coins: 15 + wave * 10 + level * 5, tech: 1, label: `Wave ${wave} Chest` };
   }
   milestoneReward(level) {
-    return { kind: 'milestone', coins: 80 + level * 25, tech: 8 + level, label: `Level ${level} Milestone` };
+    return { kind: 'milestone', coins: 50 + level * 15, tech: 4 + Math.floor(level / 2), label: `Level ${level} Milestone` };
   }
   setWaveChest(wave, level) { this.pendingChest = this.waveReward(wave, level); }
   setMilestoneChest(level) { this.pendingChest = this.milestoneReward(level); }
