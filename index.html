@@ -446,8 +446,8 @@ class Fortress {
           const cannonY = my - cannonH / 2;
           // Spin grinder and saw blade; swing hammer
           if (w.type === 'Grinder' && images.icon_grinder_blade && images.icon_grinder_blade.complete) {
-            // Static handle
-            ctx.fillStyle = '#666';
+            // Static handle - dark metal
+            ctx.fillStyle = '#3a3a44';
             ctx.fillRect(cannonX + cannonW - 18, cannonY + cannonH/2 - 4, 22, 8);
             // Spinning blade
             ctx.save();
