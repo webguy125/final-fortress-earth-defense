@@ -244,7 +244,7 @@ class Fortress {
     this.weapons[slot] = new Weapon(type);
     return true;
   }
-  sectionCost() { return 250 + (this.sections - 2) * 180; }
+  sectionCost() { return 100 + this.sections * 50; }
   buySection() {
     if (this.sections >= MAX_BLOCKS || economy.coins < this.sectionCost()) return false;
     economy.coins -= this.sectionCost();
@@ -888,47 +888,84 @@ function draw() {
       damage: images.icon_damage, fire_rate: images.icon_firerate, shield: images.icon_shield,
       hero_damage: images.icon_hero, health: images.icon_health, crit: images.icon_crit
     };
+    const weaponIcons = {
+      'Machine Gun': images.icon_machinegun, 'Laser Gun': images.icon_laser, 'Plasma Gun': images.icon_plasma,
+      'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun
+    };
     const drawIcon = (img, x, y, s) => { if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, x, y, s, s); };
     if (!pendingChoices.length) pendingChoices = upgrades.generate();
 
-    const secW = 110, secH = 52;
-    const towerH = Math.max(1, fortress.sections) * secH;
-    const baseY = Math.min(HEIGHT - 90, 150 + towerH);
+    const card = (rect, can, icon, title, sub, data, hot) => {
+      ctx.fillStyle = can ? (hot ? 'rgba(30,90,160,0.95)' : 'rgba(40,50,70,0.95)') : 'rgba(30,30,30,0.85)';
+      ctx.beginPath(); ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 8); ctx.fill();
+      ctx.strokeStyle = can ? '#8cf' : '#555'; ctx.stroke();
+      drawIcon(icon, rect.x + 4, rect.y + 6, 36);
+      ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
+      ctx.fillText(title, rect.x + 46, rect.y + 20);
+      ctx.fillStyle = '#fd0'; ctx.fillText(sub, rect.x + 46, rect.y + 36);
+      buttons.push({ rect, data });
+    };
+
+    const secW = 110, secH = 52, cardW = 150, cardH = 48;
+    const rowCount = Math.max(1, fortress.sections + (fortress.sections < MAX_BLOCKS ? 1 : 0));
+    const baseY = Math.min(HEIGHT - 80, 150 + rowCount * secH);
     const cx = WIDTH / 2;
-    for (let i = 0; i < fortress.sections; i++) {
-      const isBase = i === 0, isTop = i === fortress.sections - 1;
-      const key = isBase ? 'sec0' : isTop ? 'sec3' : (i % 2 === 0 ? 'sec2' : 'sec1');
-      const img = images[key];
-      const bx = cx - secW / 2;
+    const emptySlots = fortress.weapons.map((w, i) => w ? -1 : i).filter(i => i >= 0);
+    const nextGun = WEAPON_SHOP.find(w => !fortress.weapons.some(owned => owned && owned.type === w.type)) || WEAPON_SHOP[0];
+
+    for (let i = 0; i < rowCount; i++) {
       const by = baseY - (i + 1) * secH;
-      if (img && img.complete) ctx.drawImage(img, bx, by, secW, secH);
-
-      const left = pendingChoices[i % pendingChoices.length];
-      const right = pendingChoices[(i + 1) % pendingChoices.length];
-
-      if (left) {
-        const lr = { x: cx - secW / 2 - 160, y: by + 2, w: 150, h: 48 };
-        const can = economy.coins >= left.cost;
-        ctx.fillStyle = can ? 'rgba(40,50,70,0.95)' : 'rgba(30,30,30,0.85)';
-        ctx.beginPath(); ctx.roundRect(lr.x, lr.y, lr.w, lr.h, 8); ctx.fill();
-        ctx.strokeStyle = can ? '#8cf' : '#555'; ctx.stroke();
-        drawIcon(skillIcons[left.type] || images.icon_health, lr.x + 4, lr.y + 6, 36);
-        ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
-        ctx.fillText(left.name, lr.x + 46, lr.y + 20);
-        ctx.fillStyle = '#fd0'; ctx.fillText(`${left.cost} coins`, lr.x + 46, lr.y + 36);
-        buttons.push({ rect: lr, data: left });
-      }
-      if (right) {
-        const rr = { x: cx + secW / 2 + 10, y: by + 2, w: 150, h: 48 };
-        const can = economy.coins >= right.cost;
-        ctx.fillStyle = can ? 'rgba(30,90,160,0.95)' : 'rgba(30,30,30,0.85)';
-        ctx.beginPath(); ctx.roundRect(rr.x, rr.y, rr.w, rr.h, 8); ctx.fill();
-        ctx.strokeStyle = can ? '#6cf' : '#555'; ctx.stroke();
-        drawIcon(skillIcons[right.type] || images.icon_damage, rr.x + 4, rr.y + 6, 36);
-        ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
-        ctx.fillText(right.name, rr.x + 46, rr.y + 20);
-        ctx.fillStyle = '#fd0'; ctx.fillText(`${right.cost} coins`, rr.x + 46, rr.y + 36);
-        buttons.push({ rect: rr, data: right });
+      const owned = i < fortress.sections;
+      if (owned) {
+        const isBase = i === 0, isTop = i === fortress.sections - 1;
+        const key = isBase ? 'sec0' : isTop ? 'sec3' : (i % 2 === 0 ? 'sec2' : 'sec1');
+        const img = images[key];
+        if (img && img.complete) ctx.drawImage(img, cx - secW / 2, by, secW, secH);
+        const left = pendingChoices[i % pendingChoices.length];
+        if (left) {
+          card(
+            { x: cx - secW / 2 - cardW - 10, y: by + 2, w: cardW, h: cardH },
+            economy.coins >= left.cost,
+            skillIcons[left.type] || images.icon_health,
+            left.name, `${left.cost} coins`, left, false
+          );
+        }
+        const w = fortress.weapons[i];
+        if (!w && nextGun) {
+          card(
+            { x: cx + secW / 2 + 10, y: by + 2, w: cardW, h: cardH },
+            economy.coins >= nextGun.cost,
+            weaponIcons[nextGun.type] || images.icon_machinegun,
+            nextGun.type, `${nextGun.cost} coins`,
+            { type: 'buy_weapon', weapon: nextGun.type, slot: i }, true
+          );
+        } else {
+          const right = pendingChoices[(i + 1) % pendingChoices.length];
+          if (right) {
+            card(
+              { x: cx + secW / 2 + 10, y: by + 2, w: cardW, h: cardH },
+              economy.coins >= right.cost,
+              skillIcons[right.type] || images.icon_damage,
+              right.name, `${right.cost} coins`, right, true
+            );
+          }
+        }
+      } else {
+        const secCost = fortress.sectionCost();
+        card(
+          { x: cx - secW / 2 - cardW - 10, y: by + 2, w: cardW, h: cardH },
+          economy.coins >= secCost && fortress.sections < MAX_BLOCKS,
+          images.icon_castle,
+          'Tower Level', `${secCost} coins`, { type: 'buy_section' }, false
+        );
+        card(
+          { x: cx + secW / 2 + 10, y: by + 2, w: cardW, h: cardH },
+          emptySlots.length > 0 && economy.coins >= nextGun.cost,
+          weaponIcons[nextGun.type] || images.icon_machinegun,
+          nextGun.type, emptySlots.length ? `${nextGun.cost} coins` : 'Buy tower first',
+          emptySlots.length ? { type: 'buy_weapon', weapon: nextGun.type, slot: emptySlots[0] } : { type: 'none' },
+          true
+        );
       }
     }
 
