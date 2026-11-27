@@ -1253,9 +1253,14 @@ canvas.addEventListener('click', e => {
         }
         else if (b.data.type === 'open_weapon') {
           const w = shopOffers.weapons[b.data.index];
-          if (w) {
+          if (w && economy.coins >= w.cost) {
             const empty = fortress.weapons.findIndex(x => !x);
-            if (empty >= 0) openSelection('weapon', empty, [{ name: w.type, type: 'buy_weapon', weapon: w.type, cost: w.cost }]);
+            if (empty >= 0) {
+              economy.coins -= w.cost;
+              fortress.weapons[empty] = new Weapon(w.type);
+              generateShopOffers();
+              save();
+            }
           }
         }
         else if (b.data.type === 'open_buff') {
