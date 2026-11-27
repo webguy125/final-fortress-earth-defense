@@ -53,7 +53,7 @@ let particles = [];
 let bullets = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 28;
+const totalImages = 34;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -64,6 +64,12 @@ function loadImage(name, src) {
 }
 
 loadImage('fortress', 'sprites/fortress_side.png');
+loadImage('tower0', 'sprites/tower_band_0.png');
+loadImage('tower1', 'sprites/tower_band_1.png');
+loadImage('tower2', 'sprites/tower_band_2.png');
+loadImage('tower3', 'sprites/tower_band_3.png');
+loadImage('tower4', 'sprites/tower_band_4.png');
+loadImage('tower5', 'sprites/tower_band_5.png');
 loadImage('hero', 'sprites/hero.png');
 loadImage('scout', 'sprites/scout.png');
 loadImage('warrior', 'sprites/warrior.png');
@@ -206,8 +212,8 @@ const WEAPON_SHOP = [
   { type: 'Air Gun', cost: 240, desc: 'Anti-air' }
 ];
 
-const BLOCK_W = 96;
-const BLOCK_H = 54;
+const BLOCK_W = 150;
+const BLOCK_H = 62;
 const MAX_BLOCKS = 8;
 const BLOCK_UNLOCKS = [1, 1, 4, 8, 12, 18, 25, 35];
 
@@ -223,7 +229,7 @@ class Fortress {
     this.bob = 0;
   }
   blockPos(i) {
-    return { x: -BLOCK_W / 2 + 18, y: -28 - i * BLOCK_H };
+    return { x: -BLOCK_W / 2 + 10, y: -BLOCK_H / 2 - i * BLOCK_H + 6 };
   }
   updateSections(level) {
     for (let i = 0; i < BLOCK_UNLOCKS.length; i++) {
@@ -285,44 +291,41 @@ class Fortress {
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
     const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
+    const secW = BLOCK_W;
+    const secH = BLOCK_H;
     for (let i = 0; i < this.sections; i++) {
-      const bx = this.x - BLOCK_W / 2;
-      const by = y - (i + 1) * BLOCK_H;
+      const isTop = i === this.sections - 1;
+      const isBase = i === 0;
+      const band = isBase ? 0 : isTop ? 5 : 1 + ((i - 1) % 4);
+      const img = images['tower' + band];
+      const bx = this.x - secW / 2;
+      const by = y - (i + 1) * secH + 6;
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, bx, by, secW, secH);
+      } else {
+        ctx.fillStyle = '#6a543c';
+        ctx.fillRect(bx, by, secW, secH);
+      }
+      // cannon on the left of this section
       const w = this.weapons[i];
-      const shade = i % 2 === 0 ? '#5a4632' : '#6a543c';
-      ctx.fillStyle = shade;
-      ctx.fillRect(bx, by, BLOCK_W, BLOCK_H - 2);
-      ctx.strokeStyle = '#2a1e12';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(bx, by, BLOCK_W, BLOCK_H - 2);
-      ctx.fillStyle = 'rgba(255,255,255,0.08)';
-      ctx.fillRect(bx + 4, by + 4, BLOCK_W - 8, 6);
-      // cannon mount on the left face
-      const mx = bx + 8;
-      const my = by + BLOCK_H / 2 - 6;
-      ctx.fillStyle = '#3a3a3a';
-      ctx.fillRect(mx, my - 6, 18, 16);
+      const mx = bx + 10;
+      const my = by + secH / 2;
       if (w) {
         const col = colors[w.type] || '#aaa';
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(mx, my - 5, 14, 12);
         ctx.fillStyle = col;
-        ctx.fillRect(mx - 22, my - 3, 24, 8);
-        ctx.fillStyle = '#222';
+        ctx.fillRect(mx - 20, my - 3, 22, 7);
+        ctx.fillStyle = '#111';
         ctx.beginPath();
-        ctx.arc(mx - 22, my + 1, 5, 0, Math.PI * 2);
+        ctx.arc(mx - 20, my, 4, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = '#fff';
-        ctx.font = '10px Segoe UI';
-        ctx.textAlign = 'center';
-        ctx.fillText(w.type.split(' ')[0][0], bx + BLOCK_W - 16, my + 4);
       } else {
-        ctx.fillStyle = '#222';
-        ctx.fillRect(mx - 14, my - 2, 16, 6);
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(mx - 8, my - 2, 14, 5);
       }
     }
-    // base
-    ctx.fillStyle = '#3a2a1a';
-    ctx.fillRect(this.x - BLOCK_W / 2 - 8, y - 8, BLOCK_W + 16, 10);
-    const barY = y - this.sections * BLOCK_H - 22;
+    const barY = y - this.sections * BLOCK_H - 16;
     ctx.fillStyle = '#111';
     ctx.fillRect(this.x - 50, barY, 100, 8);
     ctx.fillStyle = '#4af';
