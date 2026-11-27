@@ -340,24 +340,26 @@ class Fortress {
       const bx = this.x - secW / 2;
       const by = y - (i + 1) * secH;
 
-      // Per-section bars, horizontal, behind the block, a little shorter than block height
-      const barH = 6;
-      const barW = secW - 16;
-      const barX = this.x - barW / 2;
-      const totalBars = barH * 2 + 3;
-      const barsTop = by + (secH - totalBars) / 2;
-      // shield
+      // Per-section bars, vertical, behind the block, a little shorter than block height
+      const barW = 7;
+      const barH = secH - 10;
+      const barY = by + (secH - barH) / 2;
+      const leftX = bx + 18;
+      const rightX = bx + secW - 18 - barW;
+      // shield (left)
       ctx.fillStyle = '#1a2030';
-      ctx.fillRect(barX, barsTop, barW, barH);
+      ctx.fillRect(leftX, barY, barW, barH);
       ctx.fillStyle = '#4af';
       const sh = this.sectionMaxShield[i] || 1;
-      ctx.fillRect(barX, barsTop, barW * Math.max(0, this.sectionShield[i] / sh), barH);
-      // health
+      const shFill = barH * Math.max(0, this.sectionShield[i] / sh);
+      ctx.fillRect(leftX, barY + (barH - shFill), barW, shFill);
+      // health (right)
       ctx.fillStyle = '#2a1010';
-      ctx.fillRect(barX, barsTop + barH + 3, barW, barH);
+      ctx.fillRect(rightX, barY, barW, barH);
       ctx.fillStyle = '#e44';
       const mh = this.sectionMaxHealth[i] || 1;
-      ctx.fillRect(barX, barsTop + barH + 3, barW * Math.max(0, this.sectionHealth[i] / mh), barH);
+      const hpFill = barH * Math.max(0, this.sectionHealth[i] / mh);
+      ctx.fillRect(rightX, barY + (barH - hpFill), barW, hpFill);
 
       // block on top of the bars
       if (img && img.complete && img.naturalWidth > 0) {
