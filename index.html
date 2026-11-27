@@ -340,20 +340,21 @@ class Fortress {
       const bx = this.x - secW / 2;
       const by = y - (i + 1) * secH;
 
-      // Both bars vertical, behind the block but sticking out on the sides so they stay visible
-      const barW = 8;
-      const barH = secH - 10;
+      // Both bars vertical, behind the block, aligned to the visible art edges
+      const barW = 7;
+      const barH = secH - 6;
       const barY = by + (secH - barH) / 2;
-      const leftX = bx - barW - 4;
-      const rightX = bx + secW + 4;
-      // shield (left of block)
+      // section art has ~25px transparent left margin when drawn at 160px
+      const leftX = bx + 18;
+      const rightX = bx + secW - barW - 2;
+      // shield
       ctx.fillStyle = '#1a2030';
       ctx.fillRect(leftX, barY, barW, barH);
       ctx.fillStyle = '#4af';
       const sh = this.sectionMaxShield[i] || 1;
       const shFill = barH * Math.max(0, this.sectionShield[i] / sh);
       ctx.fillRect(leftX, barY + (barH - shFill), barW, shFill);
-      // health (right of block)
+      // health
       ctx.fillStyle = '#2a1010';
       ctx.fillRect(rightX, barY, barW, barH);
       ctx.fillStyle = '#e44';
