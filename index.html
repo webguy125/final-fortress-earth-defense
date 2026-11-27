@@ -264,8 +264,8 @@ class Fortress {
         if (target) {
           const shot = w.fire();
           if (shot) {
-            const sx = this.x - 80 - 18;
-            const sy = this.y - 29 - i * 58;
+            const sx = this.x - 80 - 42;
+            const sy = this.y - (i + 1) * 58 + 29;
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
             bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
             particles.push(new Particle(sx - 12, sy, colors[w.type] || '#fff', 0.12, 6));
@@ -303,16 +303,28 @@ class Fortress {
       const w = this.weapons[i];
       if (w) {
         const col = colors[w.type] || '#aaa';
-        const mx = bx + 6;
         const my = by + secH / 2;
-        ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(mx, my - 6, 14, 13);
+        const muzzleX = bx - 36;
+        // mount on the tower face
+        ctx.fillStyle = '#2a2a2a';
+        ctx.fillRect(bx - 4, my - 10, 16, 20);
+        ctx.fillStyle = '#3a3a3a';
+        ctx.fillRect(bx - 8, my - 7, 10, 14);
+        // cannon barrel pointing left
+        ctx.fillStyle = '#4a4a4a';
+        ctx.fillRect(muzzleX + 8, my - 6, 34, 12);
+        ctx.fillStyle = '#666';
+        ctx.fillRect(muzzleX + 8, my - 6, 34, 3);
         ctx.fillStyle = col;
-        ctx.fillRect(mx - 24, my - 4, 26, 8);
+        ctx.fillRect(muzzleX + 18, my - 7, 8, 14);
+        // muzzle
         ctx.fillStyle = '#111';
         ctx.beginPath();
-        ctx.arc(mx - 24, my, 5, 0, Math.PI * 2);
+        ctx.arc(muzzleX + 6, my, 7, 0, Math.PI * 2);
         ctx.fill();
+        ctx.strokeStyle = '#888';
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
     }
     const barY = y - this.sections * secH - 12;
