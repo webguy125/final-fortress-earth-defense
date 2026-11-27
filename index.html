@@ -676,6 +676,7 @@ function applyShopOption(opt, slot) {
   save();
   return true;
 }
+class AdSystem {
   constructor() { this.active = false; this.countdown = 0; this.type = null; this.data = null; }
   start(type, data) { this.active = true; this.countdown = 10; this.type = type; this.data = data; }
   update(dt) {
