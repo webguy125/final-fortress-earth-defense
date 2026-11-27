@@ -689,10 +689,13 @@ class UpgradeSystem {
   }
 }
 function generateShopOffers() {
-  // 3 random weapons for empty slots
-  const available = WEAPON_SHOP.filter(w => !fortress.weapons.some(owned => owned && owned.type === w.type));
-  const shuffled = available.sort(() => Math.random() - 0.5);
-  shopOffers.weapons = shuffled.slice(0, 3);
+  // Pick 3 weapons for this level: 1 physical + 2 random others
+  const physical = ['Grinder', 'Saw Blade', 'Spikes', 'Hammer'];
+  const others = WEAPON_SHOP.filter(w => !physical.includes(w.type));
+  const physPick = physical[Math.floor(Math.random() * physical.length)];
+  const shuffled = others.sort(() => Math.random() - 0.5);
+  const picks = [physPick, shuffled[0].type, shuffled[1].type];
+  shopOffers.weapons = picks.map(t => WEAPON_SHOP.find(w => w.type === t));
   // 2 tower buffs
   const buffPool = [
     { name: '+20% Section HP', type: 'section_health', val: 0.20, base: 80 },
@@ -832,7 +835,8 @@ function startLevel() {
   lost = false;
   levelStarted = true;
   state = 'playing';
-    spawner.startLevel(levelMgr.currentLevel);
+  generateShopOffers();
+  spawner.startLevel(levelMgr.currentLevel);
   fortress.resetSections();
   particles = [];
   bullets = [];
