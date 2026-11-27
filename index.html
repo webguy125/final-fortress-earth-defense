@@ -828,6 +828,7 @@ function save() {
 function openShop() {
   lost = false;
   state = 'upgrade';
+  shopOffers = { weapons: [], buffs: [] };
   generateShopOffers();
   save();
 }
@@ -861,6 +862,7 @@ function retryWave() {
 function waveCleared() {
   lost = false;
   rewards.setWaveChest(spawner.currentWave, levelMgr.currentLevel);
+  shopOffers = { weapons: [], buffs: [] };
   generateShopOffers();
   state = 'upgrade';
   save();
@@ -1082,7 +1084,7 @@ function draw() {
     };
     const drawIcon = (img, x, y, s) => { if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, x, y, s, s); };
 
-    if (!shopOffers.weapons.length && !shopOffers.buffs.length) generateShopOffers();
+    if (!shopOffers.weapons.length) generateShopOffers();
 
     const secW = 150, secH = 70;
     const floorY = HEIGHT - 20;
