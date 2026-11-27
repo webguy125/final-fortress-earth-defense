@@ -48,6 +48,8 @@ let lost = false;
 let levelStarted = false;
 let fortress, hero, spawner, economy, upgrades, adSystem, levelMgr, rewards;
 let pendingChoices = [];
+let shopOffers = { weapons: [], buffs: [] };
+let selection = null; // { options: [], canBoth: false, slot: -1, kind: '' }
 let lastTime = 0;
 let buttons = [];
 let particles = [];
@@ -627,9 +629,55 @@ class UpgradeSystem {
     else if (upg.type === 'crit') fortress.weapons.forEach(w => w && (w.critChance = Math.min(0.55, w.critChance + v)));
   }
 }
-class AdSystem {
+function generateShopOffers() {
+  // 3 random weapons for empty slots
+  const available = WEAPON_SHOP.filter(w => !fortress.weapons.some(owned => owned && owned.type === w.type));
+  const shuffled = available.sort(() => Math.random() - 0.5);
+  shopOffers.weapons = shuffled.slice(0, 3);
+  // 2 tower buffs
+  const buffPool = [
+    { name: '+20% Section HP', type: 'section_health', val: 0.20, base: 80 },
+    { name: '+25% Section Shield', type: 'section_shield', val: 0.25, base: 70 },
+    { name: '+15% Weapon Damage', type: 'weapon_damage', val: 0.15, base: 90 },
+    { name: '+20% Fire Rate', type: 'weapon_firerate', val: 0.20, base: 100 }
+  ];
+  shopOffers.buffs = buffPool.sort(() => Math.random() - 0.5).slice(0, 2);
+}
+function openSelection(kind, slot, options) {
+  selection = {
+    kind, slot,
+    options: options.slice(0, 2),
+    canBoth: Math.random() < 0.3
+  };
+}
+function applyShopOption(opt, slot) {
+  if (!opt || economy.coins < opt.cost) return false;
+  economy.coins -= opt.cost;
+  if (opt.type === 'buy_weapon') {
+    fortress.weapons[slot] = new Weapon(opt.weapon);
+  } else if (opt.type === 'upgrade_weapon') {
+    const w = fortress.weapons[slot];
+    if (w) { w.level++; w.damage *= 1.15; w.fireRate *= 1.08; }
+  } else if (opt.type === 'section_health') {
+    fortress.sectionMaxHealth[slot] = Math.floor(fortress.sectionMaxHealth[slot] * (1 + opt.val));
+    fortress.sectionHealth[slot] = fortress.sectionMaxHealth[slot];
+    fortress.syncOverall();
+  } else if (opt.type === 'section_shield') {
+    fortress.sectionMaxShield[slot] = Math.floor(fortress.sectionMaxShield[slot] * (1 + opt.val));
+    fortress.sectionShield[slot] = fortress.sectionMaxShield[slot];
+    fortress.syncOverall();
+  } else if (opt.type === 'weapon_damage') {
+    const w = fortress.weapons[slot];
+    if (w) w.damage *= (1 + opt.val);
+  } else if (opt.type === 'weapon_firerate') {
+    const w = fortress.weapons[slot];
+    if (w) w.fireRate *= (1 + opt.val);
+  }
+  save();
+  return true;
+}
   constructor() { this.active = false; this.countdown = 0; this.type = null; this.data = null; }
-  start(type, data) { this.active = true; this.countdown = 15; this.type = type; this.data = data; }
+  start(type, data) { this.active = true; this.countdown = 10; this.type = type; this.data = data; }
   update(dt) {
     if (!this.active) return null;
     this.countdown -= dt;
@@ -712,7 +760,7 @@ function save() {
 function openShop() {
   lost = false;
   state = 'upgrade';
-  pendingChoices = upgrades.generate();
+  generateShopOffers();
   save();
 }
 function startLevel() {
@@ -744,7 +792,7 @@ function retryWave() {
 function waveCleared() {
   lost = false;
   rewards.setWaveChest(spawner.currentWave, levelMgr.currentLevel);
-  pendingChoices = upgrades.generate();
+  generateShopOffers();
   state = 'upgrade';
   save();
 }
@@ -756,7 +804,7 @@ function levelComplete() {
   levelMgr.complete();
     if (finished % 5 === 0) rewards.setMilestoneChest(finished);
   else rewards.setWaveChest(spawner.currentWave, finished);
-  pendingChoices = upgrades.generate();
+  generateShopOffers();
   state = 'upgrade';
   save();
 }
@@ -801,9 +849,17 @@ function update(dt) {
   } else if (state === 'ad') {
     const r = adSystem.update(dt);
     if (r) {
-      if (r.type === 'both') r.data.forEach(u => upgrades.apply(u));
-      else if (r.type === 'double') economy.coins *= 2;
-      startLevel();
+      if (r.type === 'both' && r.data && r.data.options) {
+        r.data.options.forEach(opt => applyShopOption(opt, r.data.slot));
+        selection = null;
+        generateShopOffers();
+        state = 'upgrade';
+      } else if (r.type === 'double') {
+        economy.coins *= 2;
+        startLevel();
+      } else {
+        startLevel();
+      }
     }
   }
 }
@@ -948,34 +1004,20 @@ function draw() {
       buttons.push({ rect: chR, data: { type: 'claim_chest' } });
     }
 
-    const skillIcons = {
-      damage: images.icon_damage, fire_rate: images.icon_firerate, shield: images.icon_shield,
-      hero_damage: images.icon_hero, health: images.icon_health, crit: images.icon_crit
-    };
     const weaponIcons = {
       'Machine Gun': images.icon_machinegun, 'Laser Gun': images.icon_laser, 'Plasma Gun': images.icon_plasma,
       'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun
     };
     const drawIcon = (img, x, y, s) => { if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, x, y, s, s); };
-    if (!pendingChoices.length) pendingChoices = upgrades.generate();
 
-    const card = (rect, can, icon, title, sub, data, hot) => {
-      ctx.fillStyle = can ? (hot ? 'rgba(30,90,160,0.95)' : 'rgba(40,50,70,0.95)') : 'rgba(30,30,30,0.85)';
-      ctx.beginPath(); ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 8); ctx.fill();
-      ctx.strokeStyle = can ? '#8cf' : '#555'; ctx.stroke();
-      drawIcon(icon, rect.x + 4, rect.y + 6, 36);
-      ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
-      ctx.fillText(title, rect.x + 46, rect.y + 20);
-      ctx.fillStyle = '#fd0'; ctx.fillText(sub, rect.x + 46, rect.y + 36);
-      buttons.push({ rect, data });
-    };
+    if (!shopOffers.weapons.length && !shopOffers.buffs.length) generateShopOffers();
 
-    const secW = 150, secH = 70, cardW = 168, cardH = 52;
-    const floorY = HEIGHT - 12;
+    const secW = 150, secH = 70;
+    const floorY = HEIGHT - 20;
     const cx = WIDTH / 2;
-    const nextGun = WEAPON_SHOP.find(w => !fortress.weapons.some(owned => owned && owned.type === w.type)) || WEAPON_SHOP[0];
     const rowCount = fortress.sections + (fortress.sections < MAX_BLOCKS ? 1 : 0);
 
+    // Tower in center
     for (let i = 0; i < rowCount; i++) {
       const by = floorY - (i + 1) * secH;
       const owned = i < fortress.sections;
@@ -984,60 +1026,102 @@ function draw() {
       const bx = cx - secW / 2;
       if (img && img.complete) {
         ctx.save();
-        if (!owned) ctx.globalAlpha = 0.5;
+        if (!owned) ctx.globalAlpha = 0.45;
         ctx.drawImage(img, bx, by, secW, secH);
         ctx.restore();
       }
       if (!owned) {
         const secCost = fortress.sectionCost();
         const can = economy.coins >= secCost;
-        const buy = { x: bx + secW + 16, y: by + 10, w: 130, h: 50 };
+        const buy = { x: bx + secW + 20, y: by + 12, w: 120, h: 46 };
         ctx.fillStyle = can ? '#2a8' : '#444';
         ctx.beginPath(); ctx.roundRect(buy.x, buy.y, buy.w, buy.h, 10); ctx.fill();
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Segoe UI'; ctx.textAlign = 'center';
-        ctx.fillText('Buy', buy.x + buy.w / 2, buy.y + 22);
-        ctx.font = '13px Segoe UI'; ctx.fillStyle = '#fd0';
-        ctx.fillText(`${secCost} coins`, buy.x + buy.w / 2, buy.y + 40);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
+        ctx.fillText('Buy', buy.x + buy.w / 2, buy.y + 20);
+        ctx.font = '12px Segoe UI'; ctx.fillStyle = '#fd0';
+        ctx.fillText(`${secCost}`, buy.x + buy.w / 2, buy.y + 36);
         buttons.push({ rect: buy, data: { type: 'buy_section' } });
-      } else {
-        const left = pendingChoices[i % pendingChoices.length];
-        if (left) {
-          card(
-            { x: bx - cardW - 12, y: by + 8, w: cardW, h: cardH },
-            economy.coins >= left.cost,
-            skillIcons[left.type] || images.icon_health,
-            left.name, `${left.cost} coins`, left, false
-          );
-        }
-        const wpn = fortress.weapons[i];
-        if (!wpn && nextGun) {
-          card(
-            { x: bx + secW + 12, y: by + 8, w: cardW, h: cardH },
-            economy.coins >= nextGun.cost,
-            weaponIcons[nextGun.type] || images.icon_machinegun,
-            nextGun.type, `${nextGun.cost} coins`,
-            { type: 'buy_weapon', weapon: nextGun.type, slot: i }, true
-          );
-        } else {
-          const right = pendingChoices[(i + 1) % pendingChoices.length];
-          if (right) {
-            card(
-              { x: bx + secW + 12, y: by + 8, w: cardW, h: cardH },
-              economy.coins >= right.cost,
-              skillIcons[right.type] || images.icon_damage,
-              right.name, `${right.cost} coins`, right, true
-            );
-          }
-        }
       }
     }
 
+    // Left: tower buffs (2)
+    shopOffers.buffs.forEach((b, i) => {
+      const r = { x: 40, y: 140 + i * 90, w: 200, h: 70 };
+      const cost = b.base;
+      const can = economy.coins >= cost;
+      ctx.fillStyle = can ? 'rgba(30,70,110,0.95)' : 'rgba(40,40,40,0.85)';
+      ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, 10); ctx.fill();
+      ctx.strokeStyle = '#6cf'; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'left';
+      ctx.fillText(b.name, r.x + 12, r.y + 28);
+      ctx.fillStyle = '#fd0'; ctx.font = '13px Segoe UI';
+      ctx.fillText(`${cost} coins`, r.x + 12, r.y + 50);
+      buttons.push({ rect: r, data: { type: 'open_buff', index: i, cost } });
+    });
+
+    // Right: 3 random weapons (only if empty slots exist)
+    const emptySlots = fortress.weapons.filter(w => !w).length;
+    if (emptySlots > 0) {
+      shopOffers.weapons.forEach((w, i) => {
+        const r = { x: WIDTH - 240, y: 140 + i * 90, w: 200, h: 70 };
+        const can = economy.coins >= w.cost;
+        ctx.fillStyle = can ? 'rgba(30,90,50,0.95)' : 'rgba(40,40,40,0.85)';
+        ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, 10); ctx.fill();
+        ctx.strokeStyle = '#6f8'; ctx.stroke();
+        drawIcon(weaponIcons[w.type], r.x + 8, r.y + 14, 40);
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'left';
+        ctx.fillText(w.type, r.x + 56, r.y + 30);
+        ctx.fillStyle = '#fd0'; ctx.font = '13px Segoe UI';
+        ctx.fillText(`${w.cost} coins`, r.x + 56, r.y + 50);
+        buttons.push({ rect: r, data: { type: 'open_weapon', index: i } });
+      });
+    }
+
+    // Continue button
     const contR = { x: WIDTH - 190, y: 18, w: 160, h: 40 };
     ctx.fillStyle = '#2a8';
     ctx.beginPath(); ctx.roundRect(contR.x, contR.y, contR.w, contR.h, 8); ctx.fill();
     ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
     ctx.fillText(lost ? 'Retry' : isLevelDone ? 'Next Level' : 'Next Wave', contR.x + contR.w/2, contR.y + 26);
     buttons.push({ rect: contR, data: { type: 'continue' } });
+
+    // Separate selection overlay
+    if (selection) {
+      ctx.fillStyle = 'rgba(0,0,0,0.75)';
+      ctx.fillRect(0, 0, WIDTH, HEIGHT);
+      ctx.fillStyle = '#1a2838';
+      ctx.beginPath(); ctx.roundRect(WIDTH/2 - 280, 120, 560, 340, 16); ctx.fill();
+      ctx.strokeStyle = '#4af'; ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Segoe UI'; ctx.textAlign = 'center';
+      ctx.fillText(selection.kind === 'weapon' ? 'CHOOSE WEAPON' : 'CHOOSE BUFF', WIDTH/2, 160);
+      selection.options.forEach((opt, i) => {
+        const r = { x: WIDTH/2 - 250 + i * 260, y: 190, w: 230, h: 140 };
+        const can = economy.coins >= (opt.cost || opt.base || 0);
+        ctx.fillStyle = can ? 'rgba(40,80,120,0.95)' : 'rgba(50,50,50,0.9)';
+        ctx.beginPath(); ctx.roundRect(r.x, r.y, r.w, r.h, 12); ctx.fill();
+        ctx.strokeStyle = '#8cf'; ctx.stroke();
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 15px Segoe UI';
+        ctx.fillText(opt.name || opt.type, r.x + r.w/2, r.y + 40);
+        ctx.fillStyle = '#fd0'; ctx.font = '14px Segoe UI';
+        ctx.fillText(`${opt.cost || opt.base || 0} coins`, r.x + r.w/2, r.y + 70);
+        buttons.push({ rect: r, data: { type: 'pick_option', index: i } });
+      });
+      if (selection.canBoth) {
+        const bothR = { x: WIDTH/2 - 120, y: 350, w: 240, h: 44 };
+        ctx.fillStyle = '#f80';
+        ctx.beginPath(); ctx.roundRect(bothR.x, bothR.y, bothR.w, bothR.h, 10); ctx.fill();
+        ctx.fillStyle = '#000'; ctx.font = 'bold 15px Segoe UI';
+        ctx.fillText('Watch ad for both', bothR.x + bothR.w/2, bothR.y + 28);
+        buttons.push({ rect: bothR, data: { type: 'pick_both' } });
+      }
+      const closeR = { x: WIDTH/2 - 60, y: 410, w: 120, h: 36 };
+      ctx.fillStyle = '#555';
+      ctx.beginPath(); ctx.roundRect(closeR.x, closeR.y, closeR.w, closeR.h, 8); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '14px Segoe UI';
+      ctx.fillText('Back', closeR.x + closeR.w/2, closeR.y + 23);
+      buttons.push({ rect: closeR, data: { type: 'close_selection' } });
+    }
   } else if (state === 'ad') {
     ctx.fillStyle = '#1a2230';
     ctx.fillRect(WIDTH/2 - 220, HEIGHT/2 - 95, 440, 190);
@@ -1071,7 +1155,33 @@ canvas.addEventListener('click', e => {
       if (x >= b.rect.x && x <= b.rect.x + b.rect.w && y >= b.rect.y && y <= b.rect.y + b.rect.h) {
         if (b.data.type === 'ability') hero.useAbility(b.data.name, spawner.enemies, fortress);
         else if (b.data.type === 'ad_double') { adSystem.start('double'); state = 'ad'; }
-        else if (b.data.type === 'buy_weapon') { buyWeaponForSlot(b.data.weapon, b.data.slot); }
+        else if (b.data.type === 'open_weapon') {
+          const w = shopOffers.weapons[b.data.index];
+          if (w) {
+            const empty = fortress.weapons.findIndex(x => !x);
+            if (empty >= 0) openSelection('weapon', empty, [{ name: w.type, type: 'buy_weapon', weapon: w.type, cost: w.cost }]);
+          }
+        }
+        else if (b.data.type === 'open_buff') {
+          const buff = shopOffers.buffs[b.data.index];
+          if (buff && fortress.sections > 0) openSelection('buff', 0, [{ name: buff.name, type: buff.type, val: buff.val, cost: buff.base }]);
+        }
+        else if (b.data.type === 'pick_option') {
+          if (selection && selection.options[b.data.index]) {
+            applyShopOption(selection.options[b.data.index], selection.slot);
+            selection = null;
+            generateShopOffers();
+          }
+        }
+        else if (b.data.type === 'pick_both') {
+          if (selection) {
+            adSystem.start('both', selection);
+            state = 'ad';
+          }
+        }
+        else if (b.data.type === 'close_selection') {
+          selection = null;
+        }
         else if (b.data.type === 'buy_section') { fortress.buySection(); save(); }
         else if (b.data.type === 'claim_chest') { rewards.claim(); save(); }
         else if (b.data.type === 'continue') {
