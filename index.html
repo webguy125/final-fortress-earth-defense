@@ -682,7 +682,6 @@ function retryWave() {
 }
 function waveCleared() {
   lost = false;
-  if (fortress.sections < MAX_BLOCKS) { fortress.sections++; fortress.weapons.push(null); }
   rewards.setWaveChest(spawner.currentWave, levelMgr.currentLevel);
   pendingChoices = upgrades.generate();
   state = 'upgrade';
