@@ -193,15 +193,15 @@ class Weapon {
     this.cooldown = 0;
   }
   baseDamage() {
-    const b = { 'Machine Gun': 8, 'Laser Gun': 15, 'Plasma Gun': 25, 'Railgun': 120, 'Freeze Cannon': 6, 'Air Gun': 12 };
+    const b = { 'Machine Gun': 8, 'Laser Gun': 15, 'Plasma Gun': 25, 'Railgun': 120, 'Freeze Cannon': 6, 'Air Gun': 12, 'Grinder': 18, 'Saw Blade': 14, 'Spikes': 12, 'Hammer': 28, 'Flamethrower': 10, 'Tesla Coil': 14, 'Missile Launcher': 45 };
     return (b[this.type] || 10) * (1 + (this.level - 1) * 0.15);
   }
   baseFireRate() {
-    const r = { 'Machine Gun': 8, 'Laser Gun': 4, 'Plasma Gun': 2, 'Railgun': 0.35, 'Freeze Cannon': 1.2, 'Air Gun': 5 };
+    const r = { 'Machine Gun': 8, 'Laser Gun': 4, 'Plasma Gun': 2, 'Railgun': 0.35, 'Freeze Cannon': 1.2, 'Air Gun': 5, 'Grinder': 2.5, 'Saw Blade': 4, 'Spikes': 1.8, 'Hammer': 1.2, 'Flamethrower': 6, 'Tesla Coil': 1.5, 'Missile Launcher': 0.6 };
     return (r[this.type] || 2) * (1 + (this.level - 1) * 0.08);
   }
   baseRange() {
-    const r = { 'Machine Gun': 420, 'Laser Gun': 500, 'Plasma Gun': 480, 'Railgun': 700, 'Freeze Cannon': 380, 'Air Gun': 450 };
+    const r = { 'Machine Gun': 420, 'Laser Gun': 500, 'Plasma Gun': 480, 'Railgun': 700, 'Freeze Cannon': 380, 'Air Gun': 450, 'Grinder': 90, 'Saw Blade': 80, 'Spikes': 70, 'Hammer': 100, 'Flamethrower': 180, 'Tesla Coil': 320, 'Missile Launcher': 550 };
     return (r[this.type] || 400) + this.level * 12;
   }
   update(dt) { if (this.cooldown > 0) this.cooldown -= dt; }
@@ -220,7 +220,14 @@ const WEAPON_SHOP = [
   { type: 'Plasma Gun', cost: 320, desc: 'Heavy energy' },
   { type: 'Railgun', cost: 500, desc: 'Long range anti-tank' },
   { type: 'Freeze Cannon', cost: 380, desc: 'Slows enemies' },
-  { type: 'Air Gun', cost: 240, desc: 'Anti-air' }
+  { type: 'Air Gun', cost: 240, desc: 'Anti-air' },
+  { type: 'Grinder', cost: 80, desc: 'Physical melee' },
+  { type: 'Saw Blade', cost: 100, desc: 'Spinning blades' },
+  { type: 'Spikes', cost: 70, desc: 'Ground spikes' },
+  { type: 'Hammer', cost: 90, desc: 'Crushing blow' },
+  { type: 'Flamethrower', cost: 180, desc: 'Burn over time' },
+  { type: 'Tesla Coil', cost: 280, desc: 'Chain lightning' },
+  { type: 'Missile Launcher', cost: 420, desc: 'Splash damage' }
 ];
 
 const BLOCK_W = 150;
@@ -300,9 +307,18 @@ class Fortress {
             // spawn from the muzzle of the attached base cannon
             const sx = this.x - 155;
             const sy = this.y - (i + 1) * 58 + 29;
-            const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
-            bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
-            particles.push(new Particle(sx - 12, sy, colors[w.type] || '#fff', 0.12, 6));
+            const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66', 'Grinder': '#cc8844', 'Saw Blade': '#aa6644', 'Spikes': '#886644', 'Hammer': '#ddaa66', 'Flamethrower': '#ff6622', 'Tesla Coil': '#66aaff', 'Missile Launcher': '#ff4444' };
+            const melee = ['Grinder', 'Saw Blade', 'Spikes', 'Hammer'];
+            if (melee.includes(w.type)) {
+              // Physical melee - damage nearby enemies directly
+              for (const e of enemies) {
+                if (e.alive && Math.abs(e.x - this.x) < 100) e.takeDamage(shot.damage);
+              }
+              particles.push(new Particle(this.x - 60, sy, '#cc8844', 0.3, 8));
+            } else {
+              bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
+              particles.push(new Particle(sx - 12, sy, colors[w.type] || '#fff', 0.12, 6));
+            }
           }
         }
       }
