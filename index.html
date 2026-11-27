@@ -219,7 +219,7 @@ class Fortress {
     this.shield = 500; this.maxShield = 500;
     this.shieldRegen = 5; this.coinMult = 1;
     this.sections = 2;
-    this.weapons = [new Weapon('Machine Gun'), null];
+    this.weapons = [new Weapon('Machine Gun'), new Weapon('Machine Gun')];
     this.bob = 0;
   }
   blockPos(i) {
@@ -229,7 +229,7 @@ class Fortress {
     for (let i = 0; i < BLOCK_UNLOCKS.length; i++) {
       if (level >= BLOCK_UNLOCKS[i] && this.sections <= i) {
         this.sections = i + 1;
-        this.weapons.push(null);
+        this.weapons.push(new Weapon('Machine Gun'));
       }
     }
   }
@@ -245,7 +245,7 @@ class Fortress {
     if (this.sections >= MAX_BLOCKS || economy.coins < this.sectionCost()) return false;
     economy.coins -= this.sectionCost();
     this.sections++;
-    this.weapons.push(null);
+    this.weapons.push(new Weapon('Machine Gun'));
     return true;
   }
   update(dt, enemies) {
@@ -261,7 +261,7 @@ class Fortress {
           const shot = w.fire();
           if (shot) {
             const pos = this.blockPos(i);
-            const sx = this.x + pos.x;
+            const sx = this.x + pos.x - 36;
             const sy = this.y + pos.y;
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
             bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
