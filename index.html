@@ -828,8 +828,7 @@ function save() {
 function openShop() {
   lost = false;
   state = 'upgrade';
-  shopOffers = { weapons: [], buffs: [] };
-  generateShopOffers();
+  if (!shopOffers.weapons.length) generateShopOffers();
   save();
 }
 function startLevel() {
@@ -862,8 +861,7 @@ function retryWave() {
 function waveCleared() {
   lost = false;
   rewards.setWaveChest(spawner.currentWave, levelMgr.currentLevel);
-  shopOffers = { weapons: [], buffs: [] };
-  generateShopOffers();
+  if (!shopOffers.weapons.length) generateShopOffers();
   state = 'upgrade';
   save();
 }
