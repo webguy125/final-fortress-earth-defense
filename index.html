@@ -888,15 +888,12 @@ function draw() {
       damage: images.icon_damage, fire_rate: images.icon_firerate, shield: images.icon_shield,
       hero_damage: images.icon_hero, health: images.icon_health, crit: images.icon_crit
     };
-    const weaponIcons = {
-      'Machine Gun': images.icon_machinegun, 'Laser Gun': images.icon_laser, 'Plasma Gun': images.icon_plasma,
-      'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun
-    };
     const drawIcon = (img, x, y, s) => { if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, x, y, s, s); };
+    if (!pendingChoices.length) pendingChoices = upgrades.generate();
 
     const secW = 110, secH = 52;
     const towerH = Math.max(1, fortress.sections) * secH;
-    const baseY = Math.min(HEIGHT - 150, 140 + towerH);
+    const baseY = Math.min(HEIGHT - 90, 150 + towerH);
     const cx = WIDTH / 2;
     for (let i = 0; i < fortress.sections; i++) {
       const isBase = i === 0, isTop = i === fortress.sections - 1;
@@ -905,72 +902,41 @@ function draw() {
       const bx = cx - secW / 2;
       const by = baseY - (i + 1) * secH;
       if (img && img.complete) ctx.drawImage(img, bx, by, secW, secH);
-      const w = fortress.weapons[i];
-      if (w) drawIcon(weaponIcons[w.type], bx - 8, by + 8, 36);
 
-      const left = pendingChoices[i % Math.max(1, pendingChoices.length)];
+      const left = pendingChoices[i % pendingChoices.length];
+      const right = pendingChoices[(i + 1) % pendingChoices.length];
+
       if (left) {
-        const lr = { x: cx - secW / 2 - 150, y: by + 4, w: 140, h: 44 };
+        const lr = { x: cx - secW / 2 - 160, y: by + 2, w: 150, h: 48 };
         const can = economy.coins >= left.cost;
-        ctx.fillStyle = can ? 'rgba(40,50,70,0.92)' : 'rgba(30,30,30,0.8)';
+        ctx.fillStyle = can ? 'rgba(40,50,70,0.95)' : 'rgba(30,30,30,0.85)';
         ctx.beginPath(); ctx.roundRect(lr.x, lr.y, lr.w, lr.h, 8); ctx.fill();
-        drawIcon(skillIcons[left.type] || images.icon_health, lr.x + 4, lr.y + 4, 36);
+        ctx.strokeStyle = can ? '#8cf' : '#555'; ctx.stroke();
+        drawIcon(skillIcons[left.type] || images.icon_health, lr.x + 4, lr.y + 6, 36);
         ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
-        ctx.fillText(left.name, lr.x + 44, lr.y + 18);
-        ctx.fillStyle = '#fd0'; ctx.fillText(`${left.cost} coins`, lr.x + 44, lr.y + 34);
+        ctx.fillText(left.name, lr.x + 46, lr.y + 20);
+        ctx.fillStyle = '#fd0'; ctx.fillText(`${left.cost} coins`, lr.x + 46, lr.y + 36);
         buttons.push({ rect: lr, data: left });
       }
-      const right = pendingChoices[(i + 1) % Math.max(1, pendingChoices.length)];
-      if (right && w) {
-        const rr = { x: cx + secW / 2 + 10, y: by + 4, w: 150, h: 44 };
+      if (right) {
+        const rr = { x: cx + secW / 2 + 10, y: by + 2, w: 150, h: 48 };
         const can = economy.coins >= right.cost;
-        ctx.fillStyle = can ? 'rgba(30,90,160,0.92)' : 'rgba(30,30,30,0.8)';
+        ctx.fillStyle = can ? 'rgba(30,90,160,0.95)' : 'rgba(30,30,30,0.85)';
         ctx.beginPath(); ctx.roundRect(rr.x, rr.y, rr.w, rr.h, 8); ctx.fill();
-        drawIcon(skillIcons[right.type] || images.icon_damage, rr.x + 4, rr.y + 4, 36);
+        ctx.strokeStyle = can ? '#6cf' : '#555'; ctx.stroke();
+        drawIcon(skillIcons[right.type] || images.icon_damage, rr.x + 4, rr.y + 6, 36);
         ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
-        ctx.fillText(w.type, rr.x + 44, rr.y + 16);
-        ctx.fillStyle = '#fd0'; ctx.fillText(`${right.cost} coins`, rr.x + 44, rr.y + 32);
+        ctx.fillText(right.name, rr.x + 46, rr.y + 20);
+        ctx.fillStyle = '#fd0'; ctx.fillText(`${right.cost} coins`, rr.x + 46, rr.y + 36);
         buttons.push({ rect: rr, data: right });
-      } else if (!w) {
-        const rr = { x: cx + secW / 2 + 10, y: by + 4, w: 150, h: 44 };
-        ctx.fillStyle = 'rgba(40,40,40,0.8)';
-        ctx.beginPath(); ctx.roundRect(rr.x, rr.y, rr.w, rr.h, 8); ctx.fill();
-        ctx.fillStyle = '#aaa'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
-        ctx.fillText('Buy a cannon', rr.x + 10, rr.y + 27);
       }
     }
 
-    const secCost = fortress.sectionCost();
-    const canSec = fortress.sections < MAX_BLOCKS && economy.coins >= secCost;
-    const secR = { x: 30, y: HEIGHT - 78, w: 210, h: 52 };
-    ctx.fillStyle = canSec ? 'rgba(30,60,110,0.95)' : 'rgba(40,40,40,0.8)';
-    ctx.beginPath(); ctx.roundRect(secR.x, secR.y, secR.w, secR.h, 10); ctx.fill();
-    drawIcon(images.icon_castle, secR.x + 6, secR.y + 6, 40);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'left';
-    ctx.fillText(fortress.sections < MAX_BLOCKS ? 'Buy Tower Level' : 'Tower Max', secR.x + 52, secR.y + 22);
-    ctx.fillStyle = '#fd0'; ctx.fillText(fortress.sections < MAX_BLOCKS ? `${secCost} coins` : 'Max', secR.x + 52, secR.y + 40);
-    buttons.push({ rect: secR, data: { type: 'buy_section' } });
-
-    const empty = fortress.weapons.map((w, i) => w ? -1 : i).filter(i => i >= 0);
-    if (empty.length) {
-      const wpn = WEAPON_SHOP[0];
-      const wr = { x: WIDTH - 250, y: HEIGHT - 78, w: 210, h: 52 };
-      const can = economy.coins >= wpn.cost;
-      ctx.fillStyle = can ? 'rgba(90,50,20,0.95)' : 'rgba(40,40,40,0.8)';
-      ctx.beginPath(); ctx.roundRect(wr.x, wr.y, wr.w, wr.h, 10); ctx.fill();
-      drawIcon(images.icon_machinegun, wr.x + 6, wr.y + 6, 40);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'left';
-      ctx.fillText('Buy Cannon', wr.x + 52, wr.y + 22);
-      ctx.fillStyle = '#fd0'; ctx.fillText(`${wpn.cost} coins`, wr.x + 52, wr.y + 40);
-      buttons.push({ rect: wr, data: { type: 'buy_weapon', weapon: wpn.type, slot: empty[0] } });
-    }
-
-    const contR = { x: WIDTH/2 - 90, y: HEIGHT - 78, w: 180, h: 52 };
-    const btn = images.btn_nextwave;
-    if (btn && btn.complete) ctx.drawImage(btn, contR.x, contR.y, contR.w, contR.h);
-    else { ctx.fillStyle = '#2a8'; ctx.beginPath(); ctx.roundRect(contR.x, contR.y, contR.w, contR.h, 10); ctx.fill(); }
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Segoe UI'; ctx.textAlign = 'center';
-    ctx.fillText(lost ? 'Retry' : isLevelDone ? 'Next Level' : 'Next Wave', contR.x + contR.w/2, contR.y + 32);
+    const contR = { x: WIDTH/2 - 80, y: HEIGHT - 56, w: 160, h: 40 };
+    ctx.fillStyle = '#2a8';
+    ctx.beginPath(); ctx.roundRect(contR.x, contR.y, contR.w, contR.h, 8); ctx.fill();
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(lost ? 'Retry' : isLevelDone ? 'Next Level' : 'Next Wave', contR.x + contR.w/2, contR.y + 26);
     buttons.push({ rect: contR, data: { type: 'continue' } });
   } else if (state === 'ad') {
     ctx.fillStyle = '#1a2230';
