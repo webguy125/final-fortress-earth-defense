@@ -864,120 +864,113 @@ function draw() {
     ctx.textAlign = 'left';
     buttons.push({ rect: adR, data: { type: 'ad_double' } });
   } else if (state === 'upgrade') {
-    ctx.fillStyle = 'rgba(0,0,0,0.78)';
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
     ctx.fillRect(0, 0, WIDTH, HEIGHT);
     buttons = [];
     const isLevelDone = spawner.currentWave >= spawner.totalWaves;
-    const title = lost
-      ? `Fortress Destroyed!`
-      : isLevelDone
-        ? `Level ${levelMgr.currentLevel - 1} Complete!`
-        : `Wave ${spawner.currentWave} Cleared!`;
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 34px Segoe UI';
-    ctx.textAlign = 'center';
-    ctx.fillText(title, WIDTH/2, 48);
-    ctx.font = '18px Segoe UI';
-    ctx.fillStyle = '#fd0';
-    ctx.fillText(`Coins: ${economy.coins}   •   Castle Levels: ${fortress.sections}`, WIDTH/2, 78);
+    const title = lost ? 'Fortress Destroyed!' : isLevelDone ? `Level ${levelMgr.currentLevel - 1} Complete!` : `Wave ${spawner.currentWave} Cleared!`;
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 28px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(title, WIDTH/2, 36);
+    ctx.fillStyle = '#fd0'; ctx.font = 'bold 20px Segoe UI';
+    ctx.fillText(`${economy.coins} coins`, WIDTH/2, 62);
 
-    // Claimable chest
     if (rewards.pendingChest) {
       const chest = rewards.pendingChest;
-      const chR = { x: WIDTH/2 - 200, y: 90, w: 400, h: 70 };
+      const chR = { x: WIDTH/2 - 160, y: 72, w: 320, h: 36 };
       ctx.fillStyle = 'rgba(120,80,20,0.95)';
-      ctx.beginPath(); ctx.roundRect(chR.x, chR.y, chR.w, chR.h, 12); ctx.fill();
-      ctx.strokeStyle = '#fd0'; ctx.lineWidth = 2; ctx.stroke();
-      if (images.icon_chest && images.icon_chest.complete) ctx.drawImage(images.icon_chest, chR.x + 6, chR.y + 5, 60, 60);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'left';
-      ctx.fillText(chest.label, chR.x + 76, chR.y + 28);
-      ctx.fillStyle = '#fd0'; ctx.font = '14px Segoe UI';
-      ctx.fillText(`Claim +${chest.coins} coins  +${chest.tech} tech`, chR.x + 76, chR.y + 50);
+      ctx.beginPath(); ctx.roundRect(chR.x, chR.y, chR.w, chR.h, 8); ctx.fill();
+      ctx.fillStyle = '#fff'; ctx.font = '14px Segoe UI';
+      ctx.fillText(`Claim ${chest.label}: +${chest.coins} coins`, WIDTH/2, 95);
       buttons.push({ rect: chR, data: { type: 'claim_chest' } });
     }
 
     const skillIcons = {
       damage: images.icon_damage, fire_rate: images.icon_firerate, shield: images.icon_shield,
-      hero_damage: images.icon_hero, coins: images.icon_coins, health: images.icon_health, crit: images.icon_crit
+      hero_damage: images.icon_hero, health: images.icon_health, crit: images.icon_crit
     };
     const weaponIcons = {
       'Machine Gun': images.icon_machinegun, 'Laser Gun': images.icon_laser, 'Plasma Gun': images.icon_plasma,
       'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun
     };
-    const drawIcon = (img, x, y, s) => {
-      if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, x, y, s, s);
-    };
+    const drawIcon = (img, x, y, s) => { if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, x, y, s, s); };
 
-    // Castle level card
+    const secW = 110, secH = 52;
+    const towerH = Math.max(1, fortress.sections) * secH;
+    const baseY = Math.min(HEIGHT - 150, 140 + towerH);
+    const cx = WIDTH / 2;
+    for (let i = 0; i < fortress.sections; i++) {
+      const isBase = i === 0, isTop = i === fortress.sections - 1;
+      const key = isBase ? 'sec0' : isTop ? 'sec3' : (i % 2 === 0 ? 'sec2' : 'sec1');
+      const img = images[key];
+      const bx = cx - secW / 2;
+      const by = baseY - (i + 1) * secH;
+      if (img && img.complete) ctx.drawImage(img, bx, by, secW, secH);
+      const w = fortress.weapons[i];
+      if (w) drawIcon(weaponIcons[w.type], bx - 8, by + 8, 36);
+
+      const left = pendingChoices[i % Math.max(1, pendingChoices.length)];
+      if (left) {
+        const lr = { x: cx - secW / 2 - 150, y: by + 4, w: 140, h: 44 };
+        const can = economy.coins >= left.cost;
+        ctx.fillStyle = can ? 'rgba(40,50,70,0.92)' : 'rgba(30,30,30,0.8)';
+        ctx.beginPath(); ctx.roundRect(lr.x, lr.y, lr.w, lr.h, 8); ctx.fill();
+        drawIcon(skillIcons[left.type] || images.icon_health, lr.x + 4, lr.y + 4, 36);
+        ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
+        ctx.fillText(left.name, lr.x + 44, lr.y + 18);
+        ctx.fillStyle = '#fd0'; ctx.fillText(`${left.cost} coins`, lr.x + 44, lr.y + 34);
+        buttons.push({ rect: lr, data: left });
+      }
+      const right = pendingChoices[(i + 1) % Math.max(1, pendingChoices.length)];
+      if (right && w) {
+        const rr = { x: cx + secW / 2 + 10, y: by + 4, w: 150, h: 44 };
+        const can = economy.coins >= right.cost;
+        ctx.fillStyle = can ? 'rgba(30,90,160,0.92)' : 'rgba(30,30,30,0.8)';
+        ctx.beginPath(); ctx.roundRect(rr.x, rr.y, rr.w, rr.h, 8); ctx.fill();
+        drawIcon(skillIcons[right.type] || images.icon_damage, rr.x + 4, rr.y + 4, 36);
+        ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
+        ctx.fillText(w.type, rr.x + 44, rr.y + 16);
+        ctx.fillStyle = '#fd0'; ctx.fillText(`${right.cost} coins`, rr.x + 44, rr.y + 32);
+        buttons.push({ rect: rr, data: right });
+      } else if (!w) {
+        const rr = { x: cx + secW / 2 + 10, y: by + 4, w: 150, h: 44 };
+        ctx.fillStyle = 'rgba(40,40,40,0.8)';
+        ctx.beginPath(); ctx.roundRect(rr.x, rr.y, rr.w, rr.h, 8); ctx.fill();
+        ctx.fillStyle = '#aaa'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'left';
+        ctx.fillText('Buy a cannon', rr.x + 10, rr.y + 27);
+      }
+    }
+
     const secCost = fortress.sectionCost();
     const canSec = fortress.sections < MAX_BLOCKS && economy.coins >= secCost;
-    const secR = { x: WIDTH/2 - 180, y: rewards.pendingChest ? 170 : 96, w: 360, h: 72 };
-    ctx.fillStyle = canSec ? 'rgba(30,60,110,0.9)' : 'rgba(40,40,40,0.8)';
-    ctx.beginPath(); ctx.roundRect(secR.x, secR.y, secR.w, secR.h, 12); ctx.fill();
-    ctx.strokeStyle = canSec ? '#6cf' : '#666'; ctx.lineWidth = 2; ctx.stroke();
-    drawIcon(images.icon_castle, secR.x + 8, secR.y + 6, 60);
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'left';
-    ctx.fillText(fortress.sections < MAX_BLOCKS ? 'Add Castle Level' : 'Castle Max Level', secR.x + 78, secR.y + 30);
-    ctx.fillStyle = '#fd0'; ctx.font = '14px Segoe UI';
-    ctx.fillText(fortress.sections < MAX_BLOCKS ? `${secCost} coins` : 'Max', secR.x + 78, secR.y + 52);
+    const secR = { x: 30, y: HEIGHT - 78, w: 210, h: 52 };
+    ctx.fillStyle = canSec ? 'rgba(30,60,110,0.95)' : 'rgba(40,40,40,0.8)';
+    ctx.beginPath(); ctx.roundRect(secR.x, secR.y, secR.w, secR.h, 10); ctx.fill();
+    drawIcon(images.icon_castle, secR.x + 6, secR.y + 6, 40);
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'left';
+    ctx.fillText(fortress.sections < MAX_BLOCKS ? 'Buy Tower Level' : 'Tower Max', secR.x + 52, secR.y + 22);
+    ctx.fillStyle = '#fd0'; ctx.fillText(fortress.sections < MAX_BLOCKS ? `${secCost} coins` : 'Max', secR.x + 52, secR.y + 40);
     buttons.push({ rect: secR, data: { type: 'buy_section' } });
 
-    // Skills as icon cards
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
-    ctx.fillText('Skills', WIDTH/2, rewards.pendingChest ? 260 : 190);
-    const skW = 220, skH = 100, skGap = 16;
-    const skTotal = pendingChoices.length * skW + (pendingChoices.length - 1) * skGap;
-    const skStart = WIDTH/2 - skTotal/2;
-    pendingChoices.forEach((u, i) => {
-      const rect = { x: skStart + i * (skW + skGap), y: rewards.pendingChest ? 270 : 200, w: skW, h: skH };
-      const canBuy = economy.coins >= (u.cost || 0);
-      ctx.fillStyle = canBuy ? 'rgba(20,70,100,0.9)' : 'rgba(40,40,40,0.8)';
-      ctx.beginPath(); ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 12); ctx.fill();
-      ctx.strokeStyle = canBuy ? '#4cf' : '#666'; ctx.stroke();
-      drawIcon(skillIcons[u.type], rect.x + 8, rect.y + 16, 68);
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'left';
-      const shortName = u.name.replace(/^\+\d+%\s*/, '');
-      ctx.fillText(shortName, rect.x + 82, rect.y + 40);
-      ctx.fillStyle = '#fd0'; ctx.font = '14px Segoe UI';
-      ctx.fillText(`${u.cost || 0} coins`, rect.x + 82, rect.y + 64);
-      buttons.push({ rect, data: u });
-    });
-
-    // Weapons as icon cards (only if empty slot)
-    const emptySlots = fortress.weapons.map((w, i) => w ? -1 : i).filter(i => i >= 0);
-    if (emptySlots.length > 0) {
-      ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'center';
-      ctx.fillText('Buy Weapon', WIDTH/2, rewards.pendingChest ? 390 : 328);
-      const wW = 180, wH = 130, wGap = 12;
-      const wTotal = WEAPON_SHOP.length * wW + (WEAPON_SHOP.length - 1) * wGap;
-      const wStart = Math.max(20, WIDTH/2 - wTotal/2);
-      WEAPON_SHOP.forEach((w, i) => {
-        const rect = { x: wStart + i * (wW + wGap), y: rewards.pendingChest ? 400 : 338, w: wW, h: wH };
-        const canBuy = economy.coins >= w.cost;
-        ctx.fillStyle = canBuy ? 'rgba(90,50,20,0.9)' : 'rgba(40,40,40,0.8)';
-        ctx.beginPath(); ctx.roundRect(rect.x, rect.y, rect.w, rect.h, 12); ctx.fill();
-        ctx.strokeStyle = canBuy ? '#fa4' : '#666'; ctx.stroke();
-        drawIcon(weaponIcons[w.type], rect.x + (wW - 70)/2, rect.y + 6, 70);
-        ctx.fillStyle = '#fff'; ctx.font = 'bold 13px Segoe UI'; ctx.textAlign = 'center';
-        ctx.fillText(w.type, rect.x + wW/2, rect.y + 92);
-        ctx.fillStyle = '#fd0'; ctx.font = '13px Segoe UI';
-        ctx.fillText(`${w.cost} coins`, rect.x + wW/2, rect.y + 112);
-        buttons.push({ rect, data: { type: 'buy_weapon', weapon: w.type, slot: emptySlots[0] } });
-      });
+    const empty = fortress.weapons.map((w, i) => w ? -1 : i).filter(i => i >= 0);
+    if (empty.length) {
+      const wpn = WEAPON_SHOP[0];
+      const wr = { x: WIDTH - 250, y: HEIGHT - 78, w: 210, h: 52 };
+      const can = economy.coins >= wpn.cost;
+      ctx.fillStyle = can ? 'rgba(90,50,20,0.95)' : 'rgba(40,40,40,0.8)';
+      ctx.beginPath(); ctx.roundRect(wr.x, wr.y, wr.w, wr.h, 10); ctx.fill();
+      drawIcon(images.icon_machinegun, wr.x + 6, wr.y + 6, 40);
+      ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Segoe UI'; ctx.textAlign = 'left';
+      ctx.fillText('Buy Cannon', wr.x + 52, wr.y + 22);
+      ctx.fillStyle = '#fd0'; ctx.fillText(`${wpn.cost} coins`, wr.x + 52, wr.y + 40);
+      buttons.push({ rect: wr, data: { type: 'buy_weapon', weapon: wpn.type, slot: empty[0] } });
     }
 
-    // Next Wave button sprite
-    const contR = { x: WIDTH/2 - 120, y: HEIGHT - 78, w: 240, h: 58 };
+    const contR = { x: WIDTH/2 - 90, y: HEIGHT - 78, w: 180, h: 52 };
     const btn = images.btn_nextwave;
-    if (btn && btn.complete && btn.naturalWidth > 0) {
-      ctx.drawImage(btn, contR.x, contR.y, contR.w, contR.h);
-    } else {
-      ctx.fillStyle = '#2a8';
-      ctx.beginPath(); ctx.roundRect(contR.x, contR.y, contR.w, contR.h, 10); ctx.fill();
-    }
-    ctx.fillStyle = '#fff'; ctx.font = 'bold 20px Segoe UI'; ctx.textAlign = 'center';
-    const contLabel = lost ? 'Retry' : isLevelDone ? 'Next Level' : 'Next Wave';
-    ctx.fillText(contLabel, contR.x + contR.w/2, contR.y + 36);
+    if (btn && btn.complete) ctx.drawImage(btn, contR.x, contR.y, contR.w, contR.h);
+    else { ctx.fillStyle = '#2a8'; ctx.beginPath(); ctx.roundRect(contR.x, contR.y, contR.w, contR.h, 10); ctx.fill(); }
+    ctx.fillStyle = '#fff'; ctx.font = 'bold 18px Segoe UI'; ctx.textAlign = 'center';
+    ctx.fillText(lost ? 'Retry' : isLevelDone ? 'Next Level' : 'Next Wave', contR.x + contR.w/2, contR.y + 32);
     buttons.push({ rect: contR, data: { type: 'continue' } });
   } else if (state === 'ad') {
     ctx.fillStyle = '#1a2230';
