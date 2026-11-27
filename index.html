@@ -667,8 +667,10 @@ function openSelection(kind, slot, options) {
   };
 }
 function applyShopOption(opt, slot) {
-  if (!opt || economy.coins < opt.cost) return false;
-  economy.coins -= opt.cost;
+  if (!opt) return false;
+  const cost = opt.cost || 0;
+  if (economy.coins < cost) return false;
+  economy.coins -= cost;
   if (opt.type === 'buy_weapon') {
     fortress.weapons[slot] = new Weapon(opt.weapon);
   } else if (opt.type === 'upgrade_weapon') {
@@ -1153,7 +1155,7 @@ function draw() {
       ctx.strokeStyle = '#4af'; ctx.lineWidth = 3;
       ctx.stroke();
       ctx.fillStyle = '#fff'; ctx.font = 'bold 22px Segoe UI'; ctx.textAlign = 'center';
-      ctx.fillText(selection.kind === 'weapon' ? 'CHOOSE WEAPON' : 'CHOOSE BUFF', WIDTH/2, 160);
+      ctx.fillText(selection.kind === 'weapon' ? 'CHOOSE WEAPON' : selection.kind === 'debuff' ? 'CHOOSE DEBUFF' : 'CHOOSE BUFF', WIDTH/2, 160);
       selection.options.forEach((opt, i) => {
         const r = { x: WIDTH/2 - 250 + i * 260, y: 190, w: 230, h: 140 };
         const can = economy.coins >= (opt.cost || opt.base || 0);
