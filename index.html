@@ -438,10 +438,10 @@ class Fortress {
         };
         const wIcon = weaponIcons[w.type];
         if (wIcon && wIcon.complete && wIcon.naturalWidth > 0) {
-          const cannonH = 48;
+          const cannonH = 44;
           const cannonW = cannonH;
           const my = by + secH * 0.5;
-          const cannonX = bx - cannonW + 30;
+          const cannonX = bx - cannonW + 48;
           const cannonY = my - cannonH / 2;
           ctx.drawImage(wIcon, cannonX, cannonY, cannonW, cannonH);
         }
