@@ -317,11 +317,31 @@ class Fortress {
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66', 'Grinder': '#cc8844', 'Saw Blade': '#aa6644', 'Spikes': '#886644', 'Hammer': '#ddaa66', 'Flamethrower': '#ff6622', 'Tesla Coil': '#66aaff', 'Missile Launcher': '#ff4444' };
             const melee = ['Grinder', 'Saw Blade', 'Spikes', 'Hammer'];
             if (melee.includes(w.type)) {
-              // Physical melee - damage nearby enemies directly
+              // Physical melee - damage nearby enemies and show attack animation
               for (const e of enemies) {
                 if (e.alive && Math.abs(e.x - this.x) < 100) e.takeDamage(shot.damage);
               }
-              particles.push(new Particle(this.x - 60, sy, '#cc8844', 0.3, 8));
+              // Attack animation based on weapon type
+              const ax = this.x - 70;
+              const ay = sy;
+              if (w.type === 'Grinder') {
+                for (let s = 0; s < 8; s++) {
+                  const ang = (s / 8) * Math.PI * 2 + Date.now() * 0.02;
+                  particles.push(new Particle(ax + Math.cos(ang) * 20, ay + Math.sin(ang) * 12, '#cc8844', 0.25, 5));
+                }
+              } else if (w.type === 'Saw Blade') {
+                for (let s = 0; s < 6; s++) {
+                  const ang = (s / 6) * Math.PI * 2;
+                  particles.push(new Particle(ax + Math.cos(ang) * 18, ay + Math.sin(ang) * 10, '#aa6644', 0.2, 4));
+                }
+              } else if (w.type === 'Spikes') {
+                for (let s = 0; s < 5; s++) {
+                  particles.push(new Particle(ax - 10 + s * 8, ay + 10, '#886644', 0.3, 6));
+                }
+              } else if (w.type === 'Hammer') {
+                particles.push(new Particle(ax - 15, ay - 5, '#ddaa66', 0.35, 10));
+                particles.push(new Particle(ax - 5, ay + 5, '#ddaa66', 0.3, 8));
+              }
             } else {
               bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
               particles.push(new Particle(sx - 12, sy, colors[w.type] || '#fff', 0.12, 6));
