@@ -340,13 +340,17 @@ class Fortress {
       const bx = this.x - secW / 2;
       const by = y - (i + 1) * secH;
 
-      // Both bars vertical, behind the block, aligned to the visible art edges
-      const barW = 7;
-      const barH = secH - 6;
+      // block
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, bx, by, secW, secH);
+      }
+
+      // Both bars vertical, tight against the visible tower
+      const barW = 6;
+      const barH = secH - 8;
       const barY = by + (secH - barH) / 2;
-      // section art has ~25px transparent left margin when drawn at 160px
-      const leftX = bx + 18;
-      const rightX = bx + secW - barW - 2;
+      const leftX = bx + 22 - barW;
+      const rightX = bx + secW - 8;
       // shield
       ctx.fillStyle = '#1a2030';
       ctx.fillRect(leftX, barY, barW, barH);
@@ -361,11 +365,6 @@ class Fortress {
       const mh = this.sectionMaxHealth[i] || 1;
       const hpFill = barH * Math.max(0, this.sectionHealth[i] / mh);
       ctx.fillRect(rightX, barY + (barH - hpFill), barW, hpFill);
-
-      // block on top of the bars
-      if (img && img.complete && img.naturalWidth > 0) {
-        ctx.drawImage(img, bx, by, secW, secH);
-      }
       const w = this.weapons[i];
       if (w && isBase && images.cannon && images.cannon.complete && images.cannon.naturalWidth > 0) {
         const cannonH = 62;
