@@ -54,7 +54,7 @@ let particles = [];
 let bullets = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 38;
+const totalImages = 39;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -69,6 +69,7 @@ loadImage('sec0', 'sprites/sec_0.png');
 loadImage('sec1', 'sprites/sec_1.png');
 loadImage('sec2', 'sprites/sec_2.png');
 loadImage('sec3', 'sprites/sec_3.png');
+loadImage('cannon', 'sprites/cannon.png?v=2');
 loadImage('tower0', 'sprites/tower_band_0.png');
 loadImage('tower1', 'sprites/tower_band_1.png');
 loadImage('tower2', 'sprites/tower_band_2.png');
@@ -264,7 +265,8 @@ class Fortress {
         if (target) {
           const shot = w.fire();
           if (shot) {
-            const sx = this.x - 80 - 42;
+            // spawn from the muzzle of the attached base cannon
+            const sx = this.x - 155;
             const sy = this.y - (i + 1) * 58 + 29;
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
             bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
@@ -301,30 +303,15 @@ class Fortress {
         ctx.drawImage(img, bx, by, secW, secH);
       }
       const w = this.weapons[i];
-      if (w) {
-        const col = colors[w.type] || '#aaa';
-        const my = by + secH / 2;
-        const muzzleX = bx - 36;
-        // mount on the tower face
-        ctx.fillStyle = '#2a2a2a';
-        ctx.fillRect(bx - 4, my - 10, 16, 20);
-        ctx.fillStyle = '#3a3a3a';
-        ctx.fillRect(bx - 8, my - 7, 10, 14);
-        // cannon barrel pointing left
-        ctx.fillStyle = '#4a4a4a';
-        ctx.fillRect(muzzleX + 8, my - 6, 34, 12);
-        ctx.fillStyle = '#666';
-        ctx.fillRect(muzzleX + 8, my - 6, 34, 3);
-        ctx.fillStyle = col;
-        ctx.fillRect(muzzleX + 18, my - 7, 8, 14);
-        // muzzle
-        ctx.fillStyle = '#111';
-        ctx.beginPath();
-        ctx.arc(muzzleX + 6, my, 7, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#888';
-        ctx.lineWidth = 2;
-        ctx.stroke();
+      if (w && isBase && images.cannon && images.cannon.complete && images.cannon.naturalWidth > 0) {
+        // Draw the real cannon sprite firmly attached to the base
+        const cannonH = 62;
+        const cannonW = images.cannon.naturalWidth * (cannonH / images.cannon.naturalHeight);
+        const my = by + secH * 0.52;
+        // Strong overlap so the mount is inside the tower face
+        const cannonX = bx - cannonW + 58;
+        const cannonY = my - cannonH / 2;
+        ctx.drawImage(images.cannon, cannonX, cannonY, cannonW, cannonH);
       }
     }
     const barY = y - this.sections * secH - 12;
@@ -348,7 +335,7 @@ class Hero {
     };
   }
   update(dt, fortress, enemies) {
-    this.x = fortress.x - 50; this.y = GROUND_Y;
+    this.x = fortress.x - 165; this.y = GROUND_Y;  // stand fully left of the cannon
     if (this.cooldown > 0) this.cooldown -= dt;
     for (const a of Object.values(this.abilities)) if (a.cur > 0) a.cur -= dt;
     if (this.cooldown <= 0) {
