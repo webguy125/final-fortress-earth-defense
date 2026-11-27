@@ -438,16 +438,16 @@ class Fortress {
         };
         const wIcon = weaponIcons[w.type];
         if (wIcon && wIcon.complete && wIcon.naturalWidth > 0) {
-          const cannonH = 44;
+          const cannonH = 70;
           const cannonW = cannonH;
           const my = by + secH * 0.5;
-          const cannonX = bx - cannonW + 48;
+          const cannonX = bx - cannonW + 40;
           const cannonY = my - cannonH / 2;
           // Spin grinder and saw blade; swing hammer
           if (w.type === 'Grinder' || w.type === 'Saw Blade') {
             ctx.save();
             ctx.translate(cannonX + cannonW/2, cannonY + cannonH/2);
-            ctx.rotate(Date.now() * 0.015);
+            ctx.rotate((Date.now() / 80) % (Math.PI * 2));
             ctx.drawImage(wIcon, -cannonW/2, -cannonH/2, cannonW, cannonH);
             ctx.restore();
           } else if (w.type === 'Hammer') {
