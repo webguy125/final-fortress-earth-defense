@@ -219,7 +219,7 @@ class Fortress {
     this.shield = 500; this.maxShield = 500;
     this.shieldRegen = 5; this.coinMult = 1;
     this.sections = 2;
-    this.weapons = [new Weapon('Machine Gun'), new Weapon('Machine Gun')];
+    this.weapons = [new Weapon('Machine Gun'), null];
     this.bob = 0;
   }
   blockPos(i) {
@@ -229,7 +229,7 @@ class Fortress {
     for (let i = 0; i < BLOCK_UNLOCKS.length; i++) {
       if (level >= BLOCK_UNLOCKS[i] && this.sections <= i) {
         this.sections = i + 1;
-        this.weapons.push(new Weapon('Machine Gun'));
+        this.weapons.push(null);
       }
     }
   }
@@ -245,7 +245,7 @@ class Fortress {
     if (this.sections >= MAX_BLOCKS || economy.coins < this.sectionCost()) return false;
     economy.coins -= this.sectionCost();
     this.sections++;
-    this.weapons.push(new Weapon('Machine Gun'));
+    this.weapons.push(null);
     return true;
   }
   update(dt, enemies) {
