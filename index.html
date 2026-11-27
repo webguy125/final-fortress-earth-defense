@@ -1348,9 +1348,6 @@ canvas.addEventListener('click', e => {
             save();
           }
         }
-          const buff = shopOffers.buffs[b.data.index];
-          if (buff && fortress.sections > 0) openSelection('buff', 0, [{ name: buff.name, type: buff.type, val: buff.val, cost: buff.base }]);
-        }
         else if (b.data.type === 'pick_option') {
           if (selection && selection.options[b.data.index]) {
             applyShopOption(selection.options[b.data.index], selection.slot);
