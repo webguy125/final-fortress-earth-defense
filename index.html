@@ -428,13 +428,23 @@ class Fortress {
       const hpFill = barH * Math.max(0, this.sectionHealth[i] / mh);
       ctx.fillRect(rightX, barY + (barH - hpFill), barW, hpFill);
       const w = this.weapons[i];
-      if (w && isBase && images.cannon && images.cannon.complete && images.cannon.naturalWidth > 0) {
-        const cannonH = 62;
-        const cannonW = images.cannon.naturalWidth * (cannonH / images.cannon.naturalHeight);
-        const my = by + secH * 0.52;
-        const cannonX = bx - cannonW + 58;
-        const cannonY = my - cannonH / 2;
-        ctx.drawImage(images.cannon, cannonX, cannonY, cannonW, cannonH);
+      if (w && isBase) {
+        const weaponIcons = {
+          'Machine Gun': images.icon_machinegun, 'Laser Gun': images.icon_laser, 'Plasma Gun': images.icon_plasma,
+          'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun,
+          'Grinder': images.icon_grinder, 'Saw Blade': images.icon_sawblade, 'Spikes': images.icon_spikes,
+          'Hammer': images.icon_hammer, 'Flamethrower': images.icon_flamethrower, 'Tesla Coil': images.icon_tesla,
+          'Missile Launcher': images.icon_missile
+        };
+        const wIcon = weaponIcons[w.type];
+        if (wIcon && wIcon.complete && wIcon.naturalWidth > 0) {
+          const cannonH = 50;
+          const cannonW = cannonH;
+          const my = by + secH * 0.5;
+          const cannonX = bx - cannonW + 20;
+          const cannonY = my - cannonH / 2;
+          ctx.drawImage(wIcon, cannonX, cannonY, cannonW, cannonH);
+        }
       }
     }
   }
