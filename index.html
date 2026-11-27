@@ -317,9 +317,9 @@ class Fortress {
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66', 'Grinder': '#cc8844', 'Saw Blade': '#aa6644', 'Spikes': '#886644', 'Hammer': '#ddaa66', 'Flamethrower': '#ff6622', 'Tesla Coil': '#66aaff', 'Missile Launcher': '#ff4444' };
             const melee = ['Grinder', 'Saw Blade', 'Spikes', 'Hammer'];
             if (melee.includes(w.type)) {
-              // Physical melee - damage nearby enemies and show attack animation
+              // Physical melee - damage nearby enemies only, no projectile
               for (const e of enemies) {
-                if (e.alive && Math.abs(e.x - this.x) < 100) e.takeDamage(shot.damage);
+                if (e.alive && Math.abs(e.x - this.x) < 110) e.takeDamage(shot.damage);
               }
               // Attack animation based on weapon type
               const ax = this.x - 70;
@@ -461,10 +461,12 @@ class Hero {
     };
   }
   update(dt, fortress, enemies) {
-    this.x = fortress.x - 165; this.y = GROUND_Y;  // stand fully left of the cannon
+    this.x = fortress.x - 165; this.y = GROUND_Y;
     if (this.cooldown > 0) this.cooldown -= dt;
     for (const a of Object.values(this.abilities)) if (a.cur > 0) a.cur -= dt;
-    if (this.cooldown <= 0) {
+    // Only fire if fortress has a ranged weapon
+    const hasRanged = fortress.weapons.some(w => w && !['Grinder','Saw Blade','Spikes','Hammer'].includes(w.type));
+    if (this.cooldown <= 0 && hasRanged) {
       const t = this.findTarget(enemies);
       if (t) { this.cooldown = 1 / this.attackSpeed; bullets.push(new Bullet(this.x - 10, this.y - 40, t.x, t.y - 30, 600, this.damage, '#00ffff', false)); }
     }
