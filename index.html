@@ -56,7 +56,7 @@ let particles = [];
 let bullets = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 39;
+const totalImages = 46;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -95,6 +95,13 @@ loadImage('icon_plasma', 'sprites/icon_plasma.png');
 loadImage('icon_railgun', 'sprites/icon_railgun.png');
 loadImage('icon_freeze', 'sprites/icon_freeze.png');
 loadImage('icon_airgun', 'sprites/icon_airgun.png');
+loadImage('icon_grinder', 'sprites/icon_grinder.png');
+loadImage('icon_sawblade', 'sprites/icon_sawblade.png');
+loadImage('icon_spikes', 'sprites/icon_spikes.png');
+loadImage('icon_hammer', 'sprites/icon_hammer.png');
+loadImage('icon_flamethrower', 'sprites/icon_flamethrower.png');
+loadImage('icon_tesla', 'sprites/icon_tesla.png');
+loadImage('icon_missile', 'sprites/icon_missile.png');
 loadImage('icon_shield', 'sprites/icon_shield.png');
 loadImage('icon_damage', 'sprites/icon_damage.png');
 loadImage('icon_firerate', 'sprites/icon_firerate.png');
@@ -1044,7 +1051,10 @@ function draw() {
 
     const weaponIcons = {
       'Machine Gun': images.icon_machinegun, 'Laser Gun': images.icon_laser, 'Plasma Gun': images.icon_plasma,
-      'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun
+      'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun,
+      'Grinder': images.icon_grinder, 'Saw Blade': images.icon_sawblade, 'Spikes': images.icon_spikes,
+      'Hammer': images.icon_hammer, 'Flamethrower': images.icon_flamethrower, 'Tesla Coil': images.icon_tesla,
+      'Missile Launcher': images.icon_missile
     };
     const drawIcon = (img, x, y, s) => { if (img && img.complete && img.naturalWidth > 0) ctx.drawImage(img, x, y, s, s); };
 
