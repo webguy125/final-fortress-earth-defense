@@ -1082,10 +1082,10 @@ function draw() {
         ctx.fillStyle = '#fd0'; ctx.fillText(`${evoCost}`, leftR.x + 8, leftR.y + 48);
         buttons.push({ rect: leftR, data: { type: 'upgrade_section', slot: i } });
 
-        // Right card: weapon evolution
+        // Right card: weapon EV (same style as section HP card)
         const wpn = fortress.weapons[i];
+        const rightR = { x: bx + secW + 10, y: by + 6, w: 140, h: 58 };
         if (wpn) {
-          const rightR = { x: bx + secW + 10, y: by + 6, w: 140, h: 58 };
           const wCost = 100 + wpn.upgrades * 60;
           const canEvolve = wpn.upgrades >= 4 && !wpn.evolved;
           ctx.fillStyle = economy.coins >= wCost ? 'rgba(50,80,60,0.95)' : 'rgba(40,40,40,0.85)';
@@ -1101,6 +1101,15 @@ function draw() {
           ctx.fillText(canEvolve ? 'EVOLVE' : `Dmg ${Math.floor(wpn.damage)}`, rightR.x + 8, rightR.y + 34);
           ctx.fillStyle = '#fd0'; ctx.fillText(canEvolve ? 'Choose debuff' : `${wCost}`, rightR.x + 8, rightR.y + 48);
           buttons.push({ rect: rightR, data: { type: canEvolve ? 'evolve_weapon' : 'upgrade_weapon', slot: i } });
+        } else {
+          // Empty slot: show buy weapon prompt
+          ctx.fillStyle = 'rgba(40,50,40,0.9)';
+          ctx.beginPath(); ctx.roundRect(rightR.x, rightR.y, rightR.w, rightR.h, 8); ctx.fill();
+          ctx.strokeStyle = '#6a6'; ctx.stroke();
+          ctx.fillStyle = '#aaa'; ctx.font = '12px Segoe UI'; ctx.textAlign = 'center';
+          ctx.fillText('No Weapon', rightR.x + rightR.w/2, rightR.y + 28);
+          ctx.fillStyle = '#fd0'; ctx.font = '11px Segoe UI';
+          ctx.fillText('Buy on right', rightR.x + rightR.w/2, rightR.y + 44);
         }
       }
     }
