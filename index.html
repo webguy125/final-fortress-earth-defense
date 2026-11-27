@@ -685,12 +685,12 @@ function applyShopOption(opt, slot) {
   } else if (opt.type === 'weapon_damage') {
     const w = fortress.weapons[slot];
     if (w) w.damage *= (1 + opt.val);
+  } else if (opt.type === 'weapon_firerate') {
+    const w = fortress.weapons[slot];
+    if (w) w.fireRate *= (1 + opt.val);
   } else if (opt.type === 'debuff_cost' || opt.type === 'debuff_multi') {
     const w = fortress.weapons[slot];
     if (w) { w.evolved = true; w.debuff = opt.type; w.upgrades = 0; }
-  }
-    const w = fortress.weapons[slot];
-    if (w) w.fireRate *= (1 + opt.val);
   }
   save();
   return true;
@@ -1238,12 +1238,6 @@ canvas.addEventListener('click', e => {
               { name: '-10% ability cost', type: 'debuff_cost', desc: 'Reduces ability cost' },
               { name: '+2 bullets, -50% dmg', type: 'debuff_multi', desc: 'Fires extra but weaker' }
             ]);
-          }
-        }
-          const w = shopOffers.weapons[b.data.index];
-          if (w) {
-            const empty = fortress.weapons.findIndex(x => !x);
-            if (empty >= 0) openSelection('weapon', empty, [{ name: w.type, type: 'buy_weapon', weapon: w.type, cost: w.cost }]);
           }
         }
         else if (b.data.type === 'open_buff') {
