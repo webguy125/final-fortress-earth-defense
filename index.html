@@ -232,6 +232,10 @@ class Fortress {
     this.shieldRegen = 5; this.coinMult = 1;
     this.sections = 0;
     this.weapons = [];
+    this.sectionHealth = [];
+    this.sectionMaxHealth = [];
+    this.sectionShield = [];
+    this.sectionMaxShield = [];
     this.bob = 0;
   }
   blockPos(i) {
@@ -251,11 +255,21 @@ class Fortress {
     economy.coins -= this.sectionCost();
     this.sections++;
     this.weapons.push(null);
+    this.sectionMaxHealth.push(250);
+    this.sectionHealth.push(250);
+    this.sectionMaxShield.push(100);
+    this.sectionShield.push(100);
     return true;
   }
   update(dt, enemies) {
     this.bob += dt * 1.2;
     if (this.shield < this.maxShield) this.shield = Math.min(this.maxShield, this.shield + this.shieldRegen * dt);
+    for (let i = 0; i < this.sections; i++) {
+      if (this.sectionShield[i] < this.sectionMaxShield[i]) {
+        this.sectionShield[i] = Math.min(this.sectionMaxShield[i], this.sectionShield[i] + this.shieldRegen * dt);
+      }
+    }
+    this.syncOverall();
     for (let i = 0; i < this.sections; i++) {
       const w = this.weapons[i];
       if (!w) continue;
@@ -283,13 +297,39 @@ class Fortress {
     return alive[slot % alive.length];
   }
   takeDamage(amount) {
-    if (this.shield > 0) { const abs = Math.min(this.shield, amount); this.shield -= abs; amount -= abs; }
-    if (amount > 0) this.health -= amount;
-    return this.health > 0;
+    // Damage the lowest living section first
+    for (let i = 0; i < this.sections; i++) {
+      if (this.sectionHealth[i] <= 0) continue;
+      if (this.sectionShield[i] > 0) {
+        const abs = Math.min(this.sectionShield[i], amount);
+        this.sectionShield[i] -= abs;
+        amount -= abs;
+      }
+      if (amount > 0) {
+        this.sectionHealth[i] = Math.max(0, this.sectionHealth[i] - amount);
+        amount = 0;
+      }
+      break;
+    }
+    // Fortress dies only if every section is destroyed
+    this.syncOverall();
+    return this.sectionHealth.some(h => h > 0);
+  }
+  syncOverall() {
+    this.health = this.sectionHealth.reduce((a, b) => a + Math.max(0, b), 0);
+    this.maxHealth = this.sectionMaxHealth.reduce((a, b) => a + b, 0) || 1;
+    this.shield = this.sectionShield.reduce((a, b) => a + Math.max(0, b), 0);
+    this.maxShield = this.sectionMaxShield.reduce((a, b) => a + b, 0) || 1;
+  }
+  resetSections() {
+    for (let i = 0; i < this.sections; i++) {
+      this.sectionHealth[i] = this.sectionMaxHealth[i];
+      this.sectionShield[i] = this.sectionMaxShield[i];
+    }
+    this.syncOverall();
   }
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
-    const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
     const secW = 160;
     const secH = 58;
     for (let i = 0; i < this.sections; i++) {
@@ -299,28 +339,40 @@ class Fortress {
       const img = images[key];
       const bx = this.x - secW / 2;
       const by = y - (i + 1) * secH;
+
+      // Per-section bars, horizontal, behind the block, a little shorter than block height
+      const barH = 6;
+      const barW = secW - 16;
+      const barX = this.x - barW / 2;
+      const totalBars = barH * 2 + 3;
+      const barsTop = by + (secH - totalBars) / 2;
+      // shield
+      ctx.fillStyle = '#1a2030';
+      ctx.fillRect(barX, barsTop, barW, barH);
+      ctx.fillStyle = '#4af';
+      const sh = this.sectionMaxShield[i] || 1;
+      ctx.fillRect(barX, barsTop, barW * Math.max(0, this.sectionShield[i] / sh), barH);
+      // health
+      ctx.fillStyle = '#2a1010';
+      ctx.fillRect(barX, barsTop + barH + 3, barW, barH);
+      ctx.fillStyle = '#e44';
+      const mh = this.sectionMaxHealth[i] || 1;
+      ctx.fillRect(barX, barsTop + barH + 3, barW * Math.max(0, this.sectionHealth[i] / mh), barH);
+
+      // block on top of the bars
       if (img && img.complete && img.naturalWidth > 0) {
         ctx.drawImage(img, bx, by, secW, secH);
       }
       const w = this.weapons[i];
       if (w && isBase && images.cannon && images.cannon.complete && images.cannon.naturalWidth > 0) {
-        // Draw the real cannon sprite firmly attached to the base
         const cannonH = 62;
         const cannonW = images.cannon.naturalWidth * (cannonH / images.cannon.naturalHeight);
         const my = by + secH * 0.52;
-        // Strong overlap so the mount is inside the tower face
         const cannonX = bx - cannonW + 58;
         const cannonY = my - cannonH / 2;
         ctx.drawImage(images.cannon, cannonX, cannonY, cannonW, cannonH);
       }
     }
-    const barY = y - this.sections * secH - 12;
-    ctx.fillStyle = '#111';
-    ctx.fillRect(this.x - 50, barY, 100, 8);
-    ctx.fillStyle = '#4af';
-    ctx.fillRect(this.x - 50, barY, 100 * (this.shield / this.maxShield), 8);
-    ctx.fillStyle = '#e44';
-    ctx.fillRect(this.x - 50, barY + 10, 100 * (this.health / this.maxHealth), 6);
   }
 }
 
@@ -356,7 +408,12 @@ class Hero {
     const a = this.abilities[name];
     if (!a || a.cur > 0) return;
     a.cur = a.cd;
-    if (name === 'Energy Shield') fortress.shield = Math.min(fortress.maxShield, fortress.shield + 200);
+    if (name === 'Energy Shield') {
+      for (let i = 0; i < fortress.sections; i++) {
+        fortress.sectionShield[i] = Math.min(fortress.sectionMaxShield[i], fortress.sectionShield[i] + 80);
+      }
+      fortress.syncOverall();
+    }
     else {
       for (const e of enemies) if (Math.abs(e.x - fortress.x) < 320) e.takeDamage(a.dmg || 100);
       for (let i = 0; i < 25; i++) particles.push(new Particle(fortress.x - 40, GROUND_Y - 40, '#ffaa00', 0.8, 7));
@@ -553,8 +610,16 @@ class UpgradeSystem {
     const v = upg.val;
     if (upg.type === 'damage') fortress.weapons.forEach(w => w && (w.damage *= 1+v));
     else if (upg.type === 'fire_rate') fortress.weapons.forEach(w => w && (w.fireRate *= 1+v));
-    else if (upg.type === 'shield') { fortress.maxShield *= 1+v; fortress.shield = fortress.maxShield; }
-    else if (upg.type === 'health') { fortress.maxHealth *= 1+v; fortress.health = fortress.maxHealth; }
+    else if (upg.type === 'shield') {
+      fortress.sectionMaxShield = fortress.sectionMaxShield.map(v => v * (1 + v));
+      fortress.sectionShield = fortress.sectionMaxShield.slice();
+      fortress.syncOverall();
+    }
+    else if (upg.type === 'health') {
+      fortress.sectionMaxHealth = fortress.sectionMaxHealth.map(v => v * (1 + v));
+      fortress.sectionHealth = fortress.sectionMaxHealth.slice();
+      fortress.syncOverall();
+    }
     else if (upg.type === 'hero_damage') hero.damage *= 1+v;
     else if (upg.type === 'crit') fortress.weapons.forEach(w => w && (w.critChance = Math.min(0.55, w.critChance + v)));
   }
@@ -652,8 +717,7 @@ function startLevel() {
   levelStarted = true;
   state = 'playing';
     spawner.startLevel(levelMgr.currentLevel);
-  fortress.health = fortress.maxHealth;
-  fortress.shield = fortress.maxShield;
+  fortress.resetSections();
   particles = [];
   bullets = [];
 }
@@ -662,8 +726,7 @@ function nextWave() {
   spawner.currentWave++;
   spawner.startWave();
   state = 'playing';
-  fortress.health = fortress.maxHealth;
-  fortress.shield = fortress.maxShield;
+  fortress.resetSections();
   particles = [];
   bullets = [];
 }
@@ -671,8 +734,7 @@ function retryWave() {
   lost = false;
   spawner.startWave();
   state = 'playing';
-  fortress.health = fortress.maxHealth;
-  fortress.shield = fortress.maxShield;
+  fortress.resetSections();
   particles = [];
   bullets = [];
 }
