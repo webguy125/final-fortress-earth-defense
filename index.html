@@ -206,6 +206,16 @@ const WEAPON_SHOP = [
   { type: 'Air Gun', cost: 240, desc: 'Anti-air' }
 ];
 
+const SLOT_POS = [
+  { x: -40, y: -60 },
+  { x: 30, y: -100 },
+  { x: -20, y: -150 },
+  { x: 25, y: -200 },
+  { x: -15, y: -250 },
+  { x: 20, y: -280 },
+  { x: 0, y: -310 }
+];
+
 class Fortress {
   constructor() {
     this.x = WIDTH - 180;
@@ -246,26 +256,26 @@ class Fortress {
       if (!w) continue;
       w.update(dt);
       if (w.canFire()) {
-        const target = this.findTarget(enemies, w.range);
+        const target = this.findTarget(enemies, w.range, i);
         if (target) {
           const shot = w.fire();
           if (shot) {
-            const yOff = -40 - i * 35;
+            const pos = SLOT_POS[i] || { x: 0, y: -80 };
+            const sx = this.x + pos.x;
+            const sy = this.y + pos.y;
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
-            bullets.push(new Bullet(this.x - 20, this.y + yOff, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
+            bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
+            particles.push(new Particle(sx - 12, sy, colors[w.type] || '#fff', 0.12, 6));
           }
         }
       }
     }
   }
-  findTarget(enemies, range) {
-    let best = null, dist = range;
-    for (const e of enemies) {
-      if (!e.alive) continue;
-      const d = Math.abs(e.x - this.x);
-      if (d < dist && e.x < this.x) { dist = d; best = e; }
-    }
-    return best;
+  findTarget(enemies, range, slot = 0) {
+    const alive = enemies.filter(e => e.alive && e.x < this.x && Math.abs(e.x - this.x) < range);
+    if (!alive.length) return null;
+    alive.sort((a, b) => Math.abs(a.x - this.x) - Math.abs(b.x - this.x));
+    return alive[slot % alive.length];
   }
   takeDamage(amount) {
     if (this.shield > 0) { const abs = Math.min(this.shield, amount); this.shield -= abs; amount -= abs; }
@@ -281,17 +291,8 @@ class Fortress {
       ctx.drawImage(images.fortress, this.x - castleW/2, y - castleH + 40, castleW, castleH);
     }
     // Weapon slots positioned on the castle at different heights
-    const slotPositions = [
-      { x: -40, y: -60 },   // bottom
-      { x: 30, y: -100 },   // mid-low
-      { x: -20, y: -150 },  // mid
-      { x: 25, y: -200 },   // mid-high
-      { x: -15, y: -250 },  // high
-      { x: 20, y: -280 },   // higher
-      { x: 0, y: -310 }     // top
-    ];
-    for (let i = 0; i < this.sections && i < slotPositions.length; i++) {
-      const pos = slotPositions[i];
+    for (let i = 0; i < this.sections && i < SLOT_POS.length; i++) {
+      const pos = SLOT_POS[i];
       const sx = this.x + pos.x;
       const sy = y + pos.y;
       const w = this.weapons[i];
