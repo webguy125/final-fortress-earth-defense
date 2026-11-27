@@ -54,7 +54,7 @@ let particles = [];
 let bullets = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 34;
+const totalImages = 38;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -65,6 +65,10 @@ function loadImage(name, src) {
 }
 
 loadImage('fortress', 'sprites/fortress_side.png');
+loadImage('sec0', 'sprites/sec_0.png');
+loadImage('sec1', 'sprites/sec_1.png');
+loadImage('sec2', 'sprites/sec_2.png');
+loadImage('sec3', 'sprites/sec_3.png');
 loadImage('tower0', 'sprites/tower_band_0.png');
 loadImage('tower1', 'sprites/tower_band_1.png');
 loadImage('tower2', 'sprites/tower_band_2.png');
@@ -225,12 +229,12 @@ class Fortress {
     this.health = 1000; this.maxHealth = 1000;
     this.shield = 500; this.maxShield = 500;
     this.shieldRegen = 5; this.coinMult = 1;
-    this.sections = 2;
-    this.weapons = [new Weapon('Machine Gun'), null];
+    this.sections = 1;
+    this.weapons = [null];
     this.bob = 0;
   }
   blockPos(i) {
-    return { x: -170 / 2 + 8, y: -70 / 2 - i * 62 };
+    return { x: -78, y: -28 - i * 58 };
   }
   updateSections(level) {
     for (let i = 0; i < BLOCK_UNLOCKS.length; i++) {
@@ -267,9 +271,8 @@ class Fortress {
         if (target) {
           const shot = w.fire();
           if (shot) {
-            const pos = this.blockPos(i);
-            const sx = this.x + pos.x - 28;
-            const sy = this.y + pos.y;
+            const sx = this.x - 80 - 18;
+            const sy = this.y - 29 - i * 58;
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
             bullets.push(new Bullet(sx - 8, sy, target.x, target.y - 30, 700, shot.damage, colors[w.type] || '#88ccff', false));
             particles.push(new Particle(sx - 12, sy, colors[w.type] || '#fff', 0.12, 6));
@@ -292,32 +295,34 @@ class Fortress {
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
     const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
-    const castleW = 200;
-    const castleH = 280;
-    if (images.fortress && images.fortress.complete) {
-      ctx.drawImage(images.fortress, this.x - castleW / 2, y - castleH + 30, castleW, castleH);
-    }
+    const secW = 160;
+    const secH = 58;
     for (let i = 0; i < this.sections; i++) {
-      const pos = this.blockPos(i);
-      const sx = this.x + pos.x;
-      const sy = y + pos.y;
+      const isBase = i === 0;
+      const isTop = i === this.sections - 1;
+      const key = isBase ? 'sec0' : isTop ? 'sec3' : (i % 2 === 0 ? 'sec2' : 'sec1');
+      const img = images[key];
+      const bx = this.x - secW / 2;
+      const by = y - (i + 1) * secH;
+      if (img && img.complete && img.naturalWidth > 0) {
+        ctx.drawImage(img, bx, by, secW, secH);
+      }
       const w = this.weapons[i];
       if (w) {
         const col = colors[w.type] || '#aaa';
+        const mx = bx + 6;
+        const my = by + secH / 2;
         ctx.fillStyle = '#1a1a1a';
-        ctx.fillRect(sx - 4, sy - 6, 16, 14);
+        ctx.fillRect(mx, my - 6, 14, 13);
         ctx.fillStyle = col;
-        ctx.fillRect(sx - 28, sy - 4, 26, 8);
+        ctx.fillRect(mx - 24, my - 4, 26, 8);
         ctx.fillStyle = '#111';
         ctx.beginPath();
-        ctx.arc(sx - 28, sy, 5, 0, Math.PI * 2);
+        ctx.arc(mx - 24, my, 5, 0, Math.PI * 2);
         ctx.fill();
-      } else {
-        ctx.fillStyle = '#333';
-        ctx.fillRect(sx - 6, sy - 3, 12, 6);
       }
     }
-    const barY = y - castleH + 10;
+    const barY = y - this.sections * secH - 12;
     ctx.fillStyle = '#111';
     ctx.fillRect(this.x - 50, barY, 100, 8);
     ctx.fillStyle = '#4af';
