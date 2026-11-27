@@ -56,7 +56,7 @@ let particles = [];
 let bullets = [];
 let images = {};
 let imagesLoaded = 0;
-const totalImages = 46;
+const totalImages = 47;
 
 function loadImage(name, src) {
   const img = new Image();
@@ -96,6 +96,7 @@ loadImage('icon_railgun', 'sprites/icon_railgun.png');
 loadImage('icon_freeze', 'sprites/icon_freeze.png');
 loadImage('icon_airgun', 'sprites/icon_airgun.png');
 loadImage('icon_grinder', 'sprites/icon_grinder.png');
+loadImage('icon_grinder_blade', 'sprites/icon_grinder_blade.png');
 loadImage('icon_sawblade', 'sprites/icon_sawblade.png');
 loadImage('icon_spikes', 'sprites/icon_spikes.png');
 loadImage('icon_hammer', 'sprites/icon_hammer.png');
@@ -444,13 +445,17 @@ class Fortress {
           const cannonX = bx - cannonW + 40;
           const cannonY = my - cannonH / 2;
           // Spin grinder and saw blade; swing hammer
-          if (w.type === 'Grinder' || w.type === 'Saw Blade') {
+          if (w.type === 'Grinder' && images.icon_grinder_blade && images.icon_grinder_blade.complete) {
+            // Static handle
+            ctx.fillStyle = '#666';
+            ctx.fillRect(cannonX + cannonW - 18, cannonY + cannonH/2 - 4, 22, 8);
+            // Spinning blade
             ctx.save();
-            ctx.translate(cannonX + cannonW/2, cannonY + cannonH/2);
-            ctx.rotate((Date.now() / 80) % (Math.PI * 2));
-            ctx.drawImage(wIcon, -cannonW/2, -cannonH/2, cannonW, cannonH);
+            ctx.translate(cannonX + cannonW/2 - 6, cannonY + cannonH/2);
+            ctx.rotate((Date.now() / 60) % (Math.PI * 2));
+            ctx.drawImage(images.icon_grinder_blade, -cannonW/2, -cannonH/2, cannonW, cannonH);
             ctx.restore();
-          } else if (w.type === 'Hammer') {
+          } else if (w.type === 'Saw Blade') {
             ctx.save();
             ctx.translate(cannonX + cannonW/2, cannonY + cannonH/2);
             ctx.rotate(Math.sin(Date.now() * 0.005) * 0.4);
