@@ -340,14 +340,13 @@ class Fortress {
       const bx = this.x - secW / 2;
       const by = y - (i + 1) * secH;
 
-      // Bars first so the tower covers them
-      const barW = 7;
-      const barH = secH - 6;
+      // Bars drawn first so the tower block covers them (they are behind)
+      const barW = 8;
+      const barH = secH - 4;
       const barY = by + (secH - barH) / 2;
-      // blue shield under the left edge of the tower art (sticks out slightly so it is visible behind)
-      const leftX = bx + 8;
-      // red health under the right edge of the tower art
-      const rightX = bx + secW - 22;
+      // both bars centered under the tower body so the art covers them
+      const leftX = bx + 40;
+      const rightX = bx + secW - 48;
       // shield
       ctx.fillStyle = '#1a2030';
       ctx.fillRect(leftX, barY, barW, barH);
