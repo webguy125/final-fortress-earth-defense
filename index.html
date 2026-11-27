@@ -400,7 +400,7 @@ class Fortress {
       const key = isBase ? 'sec0' : isTop ? 'sec3' : (i % 2 === 0 ? 'sec2' : 'sec1');
       const img = images[key];
       const bx = this.x - secW / 2;
-      const by = y - (i + 1) * (secH - 8);
+      const by = y - (i + 1) * (secH - 12);
 
       // block
       if (img && img.complete && img.naturalWidth > 0) {
@@ -1124,7 +1124,7 @@ function draw() {
 
     // Tower in center
     for (let i = 0; i < rowCount; i++) {
-      const by = floorY - (i + 1) * (secH - 8);
+      const by = floorY - (i + 1) * (secH - 12);
       const owned = i < fortress.sections;
       const key = i === 0 ? 'sec0' : (i === rowCount - 1 ? 'sec3' : (i % 2 ? 'sec1' : 'sec2'));
       const img = images[key] || images.fortress;
