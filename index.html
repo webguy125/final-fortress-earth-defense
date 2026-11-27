@@ -183,6 +183,9 @@ class Bullet {
 class Weapon {
   constructor(type, level = 1) {
     this.type = type; this.level = level;
+    this.upgrades = 0;
+    this.evolved = false;
+    this.debuff = null;
     this.damage = this.baseDamage();
     this.fireRate = this.baseFireRate();
     this.range = this.baseRange();
@@ -261,6 +264,19 @@ class Fortress {
     this.sectionHealth.push(250);
     this.sectionMaxShield.push(100);
     this.sectionShield.push(100);
+    this.sectionEvo = this.sectionEvo || [];
+    this.sectionEvo.push(0);
+    return true;
+  }
+  upgradeSection(slot) {
+    if (slot >= this.sections) return false;
+    const cost = 150 + this.sectionEvo[slot] * 80;
+    if (economy.coins < cost) return false;
+    economy.coins -= cost;
+    this.sectionEvo[slot]++;
+    this.sectionMaxHealth[slot] = Math.floor(this.sectionMaxHealth[slot] * 1.15);
+    this.sectionHealth[slot] = this.sectionMaxHealth[slot];
+    this.syncOverall();
     return true;
   }
   update(dt, enemies) {
@@ -669,7 +685,10 @@ function applyShopOption(opt, slot) {
   } else if (opt.type === 'weapon_damage') {
     const w = fortress.weapons[slot];
     if (w) w.damage *= (1 + opt.val);
-  } else if (opt.type === 'weapon_firerate') {
+  } else if (opt.type === 'debuff_cost' || opt.type === 'debuff_multi') {
+    const w = fortress.weapons[slot];
+    if (w) { w.evolved = true; w.debuff = opt.type; w.upgrades = 0; }
+  }
     const w = fortress.weapons[slot];
     if (w) w.fireRate *= (1 + opt.val);
   }
@@ -1042,6 +1061,45 @@ function draw() {
         ctx.font = '12px Segoe UI'; ctx.fillStyle = '#fd0';
         ctx.fillText(`${secCost}`, buy.x + buy.w / 2, buy.y + 36);
         buttons.push({ rect: buy, data: { type: 'buy_section' } });
+      } else {
+        // Left card: section HP evolution
+        const evo = fortress.sectionEvo[i] || 0;
+        const evoCost = 150 + evo * 80;
+        const leftR = { x: bx - 150, y: by + 6, w: 140, h: 58 };
+        ctx.fillStyle = economy.coins >= evoCost ? 'rgba(50,60,80,0.95)' : 'rgba(40,40,40,0.85)';
+        ctx.beginPath(); ctx.roundRect(leftR.x, leftR.y, leftR.w, leftR.h, 8); ctx.fill();
+        ctx.strokeStyle = '#8cf'; ctx.stroke();
+        ctx.fillStyle = '#aaa'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'left';
+        ctx.fillText(`Ev${evo}`, leftR.x + 8, leftR.y + 16);
+        for (let d = 0; d < 4; d++) {
+          ctx.fillStyle = d < (evo % 4) ? '#fd0' : '#555';
+          ctx.beginPath(); ctx.arc(leftR.x + 50 + d * 12, leftR.y + 12, 4, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.fillStyle = '#fff'; ctx.font = '12px Segoe UI';
+        ctx.fillText(`HP ${fortress.sectionMaxHealth[i]}`, leftR.x + 8, leftR.y + 34);
+        ctx.fillStyle = '#fd0'; ctx.fillText(`${evoCost}`, leftR.x + 8, leftR.y + 48);
+        buttons.push({ rect: leftR, data: { type: 'upgrade_section', slot: i } });
+
+        // Right card: weapon evolution
+        const wpn = fortress.weapons[i];
+        if (wpn) {
+          const rightR = { x: bx + secW + 10, y: by + 6, w: 140, h: 58 };
+          const wCost = 100 + wpn.upgrades * 60;
+          const canEvolve = wpn.upgrades >= 4 && !wpn.evolved;
+          ctx.fillStyle = economy.coins >= wCost ? 'rgba(50,80,60,0.95)' : 'rgba(40,40,40,0.85)';
+          ctx.beginPath(); ctx.roundRect(rightR.x, rightR.y, rightR.w, rightR.h, 8); ctx.fill();
+          ctx.strokeStyle = canEvolve ? '#fd0' : '#6f8'; ctx.stroke();
+          ctx.fillStyle = '#aaa'; ctx.font = 'bold 11px Segoe UI'; ctx.textAlign = 'left';
+          ctx.fillText(`Ev${wpn.upgrades}`, rightR.x + 8, rightR.y + 16);
+          for (let d = 0; d < 4; d++) {
+            ctx.fillStyle = d < (wpn.upgrades % 4) ? '#4f4' : '#555';
+            ctx.beginPath(); ctx.arc(rightR.x + 50 + d * 12, rightR.y + 12, 4, 0, Math.PI*2); ctx.fill();
+          }
+          ctx.fillStyle = '#fff'; ctx.font = '11px Segoe UI';
+          ctx.fillText(canEvolve ? 'EVOLVE' : `Dmg ${Math.floor(wpn.damage)}`, rightR.x + 8, rightR.y + 34);
+          ctx.fillStyle = '#fd0'; ctx.fillText(canEvolve ? 'Choose debuff' : `${wCost}`, rightR.x + 8, rightR.y + 48);
+          buttons.push({ rect: rightR, data: { type: canEvolve ? 'evolve_weapon' : 'upgrade_weapon', slot: i } });
+        }
       }
     }
 
@@ -1156,7 +1214,32 @@ canvas.addEventListener('click', e => {
       if (x >= b.rect.x && x <= b.rect.x + b.rect.w && y >= b.rect.y && y <= b.rect.y + b.rect.h) {
         if (b.data.type === 'ability') hero.useAbility(b.data.name, spawner.enemies, fortress);
         else if (b.data.type === 'ad_double') { adSystem.start('double'); state = 'ad'; }
-        else if (b.data.type === 'open_weapon') {
+        else if (b.data.type === 'upgrade_section') {
+          fortress.upgradeSection(b.data.slot);
+          save();
+        }
+        else if (b.data.type === 'upgrade_weapon') {
+          const w = fortress.weapons[b.data.slot];
+          if (w && w.upgrades < 4) {
+            const cost = 100 + w.upgrades * 60;
+            if (economy.coins >= cost) {
+              economy.coins -= cost;
+              w.upgrades++;
+              w.damage *= 1.12;
+              w.fireRate *= 1.06;
+              save();
+            }
+          }
+        }
+        else if (b.data.type === 'evolve_weapon') {
+          const w = fortress.weapons[b.data.slot];
+          if (w && w.upgrades >= 4 && !w.evolved) {
+            openSelection('debuff', b.data.slot, [
+              { name: '-10% ability cost', type: 'debuff_cost', desc: 'Reduces ability cost' },
+              { name: '+2 bullets, -50% dmg', type: 'debuff_multi', desc: 'Fires extra but weaker' }
+            ]);
+          }
+        }
           const w = shopOffers.weapons[b.data.index];
           if (w) {
             const empty = fortress.weapons.findIndex(x => !x);
