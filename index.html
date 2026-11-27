@@ -209,7 +209,7 @@ class Weapon {
     return (r[this.type] || 2) * (1 + (this.level - 1) * 0.08);
   }
   baseRange() {
-    const r = { 'Machine Gun': 420, 'Laser Gun': 500, 'Plasma Gun': 480, 'Railgun': 700, 'Freeze Cannon': 380, 'Air Gun': 450, 'Grinder': 90, 'Saw Blade': 80, 'Spikes': 70, 'Hammer': 100, 'Flamethrower': 180, 'Tesla Coil': 320, 'Missile Launcher': 550 };
+    const r = { 'Machine Gun': 420, 'Laser Gun': 500, 'Plasma Gun': 480, 'Railgun': 700, 'Freeze Cannon': 380, 'Air Gun': 450, 'Grinder': 160, 'Saw Blade': 80, 'Spikes': 70, 'Hammer': 100, 'Flamethrower': 180, 'Tesla Coil': 320, 'Missile Launcher': 550 };
     return (r[this.type] || 400) + this.level * 12;
   }
   update(dt) { if (this.cooldown > 0) this.cooldown -= dt; }
@@ -320,7 +320,7 @@ class Fortress {
             if (melee.includes(w.type)) {
               // Physical melee - damage nearby enemies only, no projectile
               for (const e of enemies) {
-                if (e.alive && Math.abs(e.x - this.x) < 130) e.takeDamage(shot.damage);
+                if (e.alive && Math.abs(e.x - this.x) < 160) e.takeDamage(shot.damage);
               }
               // Attack animation based on weapon type
               const ax = this.x - 70;
