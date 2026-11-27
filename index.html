@@ -464,9 +464,7 @@ class Hero {
     this.x = fortress.x - 165; this.y = GROUND_Y;
     if (this.cooldown > 0) this.cooldown -= dt;
     for (const a of Object.values(this.abilities)) if (a.cur > 0) a.cur -= dt;
-    // Only fire if fortress has a ranged weapon
-    const hasRanged = fortress.weapons.some(w => w && !['Grinder','Saw Blade','Spikes','Hammer'].includes(w.type));
-    if (this.cooldown <= 0 && hasRanged) {
+    if (this.cooldown <= 0) {
       const t = this.findTarget(enemies);
       if (t) { this.cooldown = 1 / this.attackSpeed; bullets.push(new Bullet(this.x - 10, this.y - 40, t.x, t.y - 30, 600, this.damage, '#00ffff', false)); }
     }
