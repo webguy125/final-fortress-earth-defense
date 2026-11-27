@@ -320,7 +320,7 @@ class Fortress {
             if (melee.includes(w.type)) {
               // Physical melee - damage nearby enemies only, no projectile
               for (const e of enemies) {
-                if (e.alive && Math.abs(e.x - this.x) < 110) e.takeDamage(shot.damage);
+                if (e.alive && Math.abs(e.x - this.x) < 130) e.takeDamage(shot.damage);
               }
               // Attack animation based on weapon type
               const ax = this.x - 70;
@@ -446,12 +446,12 @@ class Fortress {
           const cannonY = my - cannonH / 2;
           // Spin grinder and saw blade; swing hammer
           if (w.type === 'Grinder' && images.icon_grinder_blade && images.icon_grinder_blade.complete) {
-            // Static handle - dark metal
+            // Static handle - extends toward enemies
             ctx.fillStyle = '#3a3a44';
-            ctx.fillRect(cannonX + cannonW - 18, cannonY + cannonH/2 - 4, 22, 8);
-            // Spinning blade
+            ctx.fillRect(cannonX - 10, cannonY + cannonH/2 - 4, 36, 8);
+            // Spinning blade - positioned as an obstacle in front
             ctx.save();
-            ctx.translate(cannonX + cannonW/2 - 6, cannonY + cannonH/2);
+            ctx.translate(cannonX - 4, cannonY + cannonH/2);
             ctx.rotate((Date.now() / 60) % (Math.PI * 2));
             ctx.drawImage(images.icon_grinder_blade, -cannonW/2, -cannonH/2, cannonW, cannonH);
             ctx.restore();
@@ -552,7 +552,9 @@ class Enemy {
   isBomber() { return this.type === 'Tank'; }
   update(dt, fortress) {
     this.bob += dt * 5;
-    const attackDist = this.isBomber() ? 460 : this.isRanged() ? 260 : (this.type === 'Boss' ? 110 : 85);
+    // Stop further out if grinder is equipped
+    const hasGrinder = fortress.weapons.some(w => w && w.type === 'Grinder');
+    const attackDist = this.isBomber() ? 460 : this.isRanged() ? 260 : (this.type === 'Boss' ? 110 : (hasGrinder ? 140 : 85));
     const stopX = fortress.x - attackDist;
     this.attacking = false;
     if (this.x < stopX) {
