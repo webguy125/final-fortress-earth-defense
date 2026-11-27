@@ -206,15 +206,10 @@ const WEAPON_SHOP = [
   { type: 'Air Gun', cost: 240, desc: 'Anti-air' }
 ];
 
-const SLOT_POS = [
-  { x: -40, y: -60 },
-  { x: 30, y: -100 },
-  { x: -20, y: -150 },
-  { x: 25, y: -200 },
-  { x: -15, y: -250 },
-  { x: 20, y: -280 },
-  { x: 0, y: -310 }
-];
+const BLOCK_W = 96;
+const BLOCK_H = 54;
+const MAX_BLOCKS = 8;
+const BLOCK_UNLOCKS = [1, 1, 4, 8, 12, 18, 25, 35];
 
 class Fortress {
   constructor() {
@@ -223,15 +218,20 @@ class Fortress {
     this.health = 1000; this.maxHealth = 1000;
     this.shield = 500; this.maxShield = 500;
     this.shieldRegen = 5; this.coinMult = 1;
-    this.sections = 3; // start with 3
-    this.weapons = [new Weapon('Machine Gun'), null, null]; // one per section
+    this.sections = 2;
+    this.weapons = [new Weapon('Machine Gun'), null];
     this.bob = 0;
   }
+  blockPos(i) {
+    return { x: -BLOCK_W / 2 + 18, y: -28 - i * BLOCK_H };
+  }
   updateSections(level) {
-    if (level >= 5 && this.sections < 4) { this.sections = 4; this.weapons.push(null); }
-    if (level >= 15 && this.sections < 5) { this.sections = 5; this.weapons.push(null); }
-    if (level >= 30 && this.sections < 6) { this.sections = 6; this.weapons.push(null); }
-    if (level >= 60 && this.sections < 7) { this.sections = 7; this.weapons.push(null); }
+    for (let i = 0; i < BLOCK_UNLOCKS.length; i++) {
+      if (level >= BLOCK_UNLOCKS[i] && this.sections <= i) {
+        this.sections = i + 1;
+        this.weapons.push(null);
+      }
+    }
   }
   buyWeapon(type, slot) {
     const item = WEAPON_SHOP.find(w => w.type === type);
@@ -240,9 +240,9 @@ class Fortress {
     this.weapons[slot] = new Weapon(type);
     return true;
   }
-  sectionCost() { return 250 + (this.sections - 3) * 180; }
+  sectionCost() { return 250 + (this.sections - 2) * 180; }
   buySection() {
-    if (this.sections >= 7 || economy.coins < this.sectionCost()) return false;
+    if (this.sections >= MAX_BLOCKS || economy.coins < this.sectionCost()) return false;
     economy.coins -= this.sectionCost();
     this.sections++;
     this.weapons.push(null);
@@ -260,7 +260,7 @@ class Fortress {
         if (target) {
           const shot = w.fire();
           if (shot) {
-            const pos = SLOT_POS[i] || { x: 0, y: -80 };
+            const pos = this.blockPos(i);
             const sx = this.x + pos.x;
             const sy = this.y + pos.y;
             const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
@@ -284,40 +284,51 @@ class Fortress {
   }
   draw() {
     const y = this.y + Math.sin(this.bob) * 2;
-    // Big castle sprite
-    const castleW = 260;
-    const castleH = 320;
-    if (images.fortress) {
-      ctx.drawImage(images.fortress, this.x - castleW/2, y - castleH + 40, castleW, castleH);
-    }
-    // Weapon slots positioned on the castle at different heights
-    for (let i = 0; i < this.sections && i < SLOT_POS.length; i++) {
-      const pos = SLOT_POS[i];
-      const sx = this.x + pos.x;
-      const sy = y + pos.y;
+    const colors = { 'Machine Gun': '#ffcc44', 'Laser Gun': '#44ddff', 'Plasma Gun': '#cc66ff', 'Railgun': '#ffff66', 'Freeze Cannon': '#66eeff', 'Air Gun': '#88ff66' };
+    for (let i = 0; i < this.sections; i++) {
+      const bx = this.x - BLOCK_W / 2;
+      const by = y - (i + 1) * BLOCK_H;
       const w = this.weapons[i];
-      ctx.fillStyle = w ? '#ffaa00' : '#333';
-      ctx.beginPath();
-      ctx.arc(sx, sy, 10, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.strokeStyle = '#7af';
+      const shade = i % 2 === 0 ? '#5a4632' : '#6a543c';
+      ctx.fillStyle = shade;
+      ctx.fillRect(bx, by, BLOCK_W, BLOCK_H - 2);
+      ctx.strokeStyle = '#2a1e12';
       ctx.lineWidth = 2;
-      ctx.stroke();
+      ctx.strokeRect(bx, by, BLOCK_W, BLOCK_H - 2);
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      ctx.fillRect(bx + 4, by + 4, BLOCK_W - 8, 6);
+      // cannon mount on the left face
+      const mx = bx + 8;
+      const my = by + BLOCK_H / 2 - 6;
+      ctx.fillStyle = '#3a3a3a';
+      ctx.fillRect(mx, my - 6, 18, 16);
       if (w) {
+        const col = colors[w.type] || '#aaa';
+        ctx.fillStyle = col;
+        ctx.fillRect(mx - 22, my - 3, 24, 8);
+        ctx.fillStyle = '#222';
+        ctx.beginPath();
+        ctx.arc(mx - 22, my + 1, 5, 0, Math.PI * 2);
+        ctx.fill();
         ctx.fillStyle = '#fff';
-        ctx.font = '9px Segoe UI';
+        ctx.font = '10px Segoe UI';
         ctx.textAlign = 'center';
-        ctx.fillText(w.type.split(' ')[0][0], sx, sy + 3);
+        ctx.fillText(w.type.split(' ')[0][0], bx + BLOCK_W - 16, my + 4);
+      } else {
+        ctx.fillStyle = '#222';
+        ctx.fillRect(mx - 14, my - 2, 16, 6);
       }
     }
-    // Bars above castle
-    const barY = y - castleH + 20;
+    // base
+    ctx.fillStyle = '#3a2a1a';
+    ctx.fillRect(this.x - BLOCK_W / 2 - 8, y - 8, BLOCK_W + 16, 10);
+    const barY = y - this.sections * BLOCK_H - 22;
     ctx.fillStyle = '#111';
-    ctx.fillRect(this.x - 80, barY, 160, 10);
+    ctx.fillRect(this.x - 50, barY, 100, 8);
     ctx.fillStyle = '#4af';
-    ctx.fillRect(this.x - 80, barY, 160 * (this.shield / this.maxShield), 10);
+    ctx.fillRect(this.x - 50, barY, 100 * (this.shield / this.maxShield), 8);
     ctx.fillStyle = '#e44';
-    ctx.fillRect(this.x - 80, barY + 12, 160 * (this.health / this.maxHealth), 7);
+    ctx.fillRect(this.x - 50, barY + 10, 100 * (this.health / this.maxHealth), 6);
   }
 }
 
@@ -899,16 +910,16 @@ function draw() {
 
     // Castle level card
     const secCost = fortress.sectionCost();
-    const canSec = fortress.sections < 7 && economy.coins >= secCost;
+    const canSec = fortress.sections < MAX_BLOCKS && economy.coins >= secCost;
     const secR = { x: WIDTH/2 - 180, y: rewards.pendingChest ? 170 : 96, w: 360, h: 72 };
     ctx.fillStyle = canSec ? 'rgba(30,60,110,0.9)' : 'rgba(40,40,40,0.8)';
     ctx.beginPath(); ctx.roundRect(secR.x, secR.y, secR.w, secR.h, 12); ctx.fill();
     ctx.strokeStyle = canSec ? '#6cf' : '#666'; ctx.lineWidth = 2; ctx.stroke();
     drawIcon(images.icon_castle, secR.x + 8, secR.y + 6, 60);
     ctx.fillStyle = '#fff'; ctx.font = 'bold 16px Segoe UI'; ctx.textAlign = 'left';
-    ctx.fillText(fortress.sections < 7 ? 'Add Castle Level' : 'Castle Max Level', secR.x + 78, secR.y + 30);
+    ctx.fillText(fortress.sections < MAX_BLOCKS ? 'Add Castle Level' : 'Castle Max Level', secR.x + 78, secR.y + 30);
     ctx.fillStyle = '#fd0'; ctx.font = '14px Segoe UI';
-    ctx.fillText(fortress.sections < 7 ? `${secCost} coins` : 'Max', secR.x + 78, secR.y + 52);
+    ctx.fillText(fortress.sections < MAX_BLOCKS ? `${secCost} coins` : 'Max', secR.x + 78, secR.y + 52);
     buttons.push({ rect: secR, data: { type: 'buy_section' } });
 
     // Skills as icon cards
