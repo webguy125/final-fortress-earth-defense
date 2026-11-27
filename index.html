@@ -229,21 +229,14 @@ class Fortress {
     this.health = 1000; this.maxHealth = 1000;
     this.shield = 500; this.maxShield = 500;
     this.shieldRegen = 5; this.coinMult = 1;
-    this.sections = 1;
-    this.weapons = [null];
+    this.sections = 0;
+    this.weapons = [];
     this.bob = 0;
   }
   blockPos(i) {
     return { x: -78, y: -28 - i * 58 };
   }
-  updateSections(level) {
-    for (let i = 0; i < BLOCK_UNLOCKS.length; i++) {
-      if (level >= BLOCK_UNLOCKS[i] && this.sections <= i) {
-        this.sections = i + 1;
-        this.weapons.push(null);
-      }
-    }
-  }
+  updateSections(level) { /* sections are only added by purchase */ }
   buyWeapon(type, slot) {
     const item = WEAPON_SHOP.find(w => w.type === type);
     if (!item || economy.coins < item.cost || slot >= this.sections) return false;
@@ -659,8 +652,7 @@ function startLevel() {
   lost = false;
   levelStarted = true;
   state = 'playing';
-  fortress.updateSections(levelMgr.currentLevel);
-  spawner.startLevel(levelMgr.currentLevel);
+    spawner.startLevel(levelMgr.currentLevel);
   fortress.health = fortress.maxHealth;
   fortress.shield = fortress.maxShield;
   particles = [];
@@ -698,8 +690,7 @@ function levelComplete() {
   economy.coins = 500;
   const finished = levelMgr.currentLevel;
   levelMgr.complete();
-  fortress.updateSections(levelMgr.currentLevel);
-  if (finished % 5 === 0) rewards.setMilestoneChest(finished);
+    if (finished % 5 === 0) rewards.setMilestoneChest(finished);
   else rewards.setWaveChest(spawner.currentWave, finished);
   pendingChoices = upgrades.generate();
   state = 'upgrade';
