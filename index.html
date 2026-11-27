@@ -428,7 +428,7 @@ class Fortress {
       const hpFill = barH * Math.max(0, this.sectionHealth[i] / mh);
       ctx.fillRect(rightX, barY + (barH - hpFill), barW, hpFill);
       const w = this.weapons[i];
-      if (w && isBase) {
+      if (w) {
         const weaponIcons = {
           'Machine Gun': images.icon_machinegun, 'Laser Gun': images.icon_laser, 'Plasma Gun': images.icon_plasma,
           'Railgun': images.icon_railgun, 'Freeze Cannon': images.icon_freeze, 'Air Gun': images.icon_airgun,
@@ -447,7 +447,7 @@ class Fortress {
           if (w.type === 'Grinder' || w.type === 'Saw Blade') {
             ctx.save();
             ctx.translate(cannonX + cannonW/2, cannonY + cannonH/2);
-            ctx.rotate(Date.now() * 0.01);
+            ctx.rotate(Date.now() * 0.015);
             ctx.drawImage(wIcon, -cannonW/2, -cannonH/2, cannonW, cannonH);
             ctx.restore();
           } else if (w.type === 'Hammer') {
