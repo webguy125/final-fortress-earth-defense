@@ -443,7 +443,16 @@ class Fortress {
           const my = by + secH * 0.5;
           const cannonX = bx - cannonW + 48;
           const cannonY = my - cannonH / 2;
-          ctx.drawImage(wIcon, cannonX, cannonY, cannonW, cannonH);
+          // Spin grinder and saw blade
+          if (w.type === 'Grinder' || w.type === 'Saw Blade') {
+            ctx.save();
+            ctx.translate(cannonX + cannonW/2, cannonY + cannonH/2);
+            ctx.rotate(Date.now() * 0.01);
+            ctx.drawImage(wIcon, -cannonW/2, -cannonH/2, cannonW, cannonH);
+            ctx.restore();
+          } else {
+            ctx.drawImage(wIcon, cannonX, cannonY, cannonW, cannonH);
+          }
         }
       }
     }
