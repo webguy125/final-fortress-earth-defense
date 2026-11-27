@@ -1242,6 +1242,13 @@ canvas.addEventListener('click', e => {
             ]);
           }
         }
+        else if (b.data.type === 'open_weapon') {
+          const w = shopOffers.weapons[b.data.index];
+          if (w) {
+            const empty = fortress.weapons.findIndex(x => !x);
+            if (empty >= 0) openSelection('weapon', empty, [{ name: w.type, type: 'buy_weapon', weapon: w.type, cost: w.cost }]);
+          }
+        }
         else if (b.data.type === 'open_buff') {
           const buff = shopOffers.buffs[b.data.index];
           if (buff && fortress.sections > 0) openSelection('buff', 0, [{ name: buff.name, type: buff.type, val: buff.val, cost: buff.base }]);
